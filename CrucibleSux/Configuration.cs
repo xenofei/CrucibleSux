@@ -39,6 +39,22 @@ public sealed class Configuration : IPluginConfiguration
     public Dictionary<ulong, List<RunRecord>> Runs { get; set; } = [];
 
     public const int HistoryCap = 500;
+
+    /// <summary>Board runs register only the 3 best beasts (Beast Squad III) instead of AutoDuty's full team.</summary>
+    public bool RunTeamOfThree { get; set; } = RunOptions.Default.TeamOfThree;
+
+    /// <summary>Board runs may buy from the board shop (forfeits Coin Clutcher).</summary>
+    public bool RunShop { get; set; } = RunOptions.Default.Shop;
+
+    public RunGoal RunGoal { get; set; } = RunOptions.Default.Goal;
+
+    /// <summary>In a board, target the enemy the game's intel says dies first (the Pas de Seul mage, the Ogre's wisps).</summary>
+    public bool PickTargets { get; set; } = true;
+
+    /// <summary>Record casts, hits, movement and windows while in a board or while a run is going, for bug reports.</summary>
+    public bool RecordCombat { get; set; } = true;
+
+    public RunOptions BoardRunOptions() => new(this.RunTeamOfThree, this.RunShop, this.RunGoal);
 }
 
 [Serializable]

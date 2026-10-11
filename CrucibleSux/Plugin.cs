@@ -1,10 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using CrucibleSux.Automation;
 using CrucibleSux.Core;
+using CrucibleSux.Diagnostics;
 using CrucibleSux.Game;
 using CrucibleSux.Integrations;
 using CrucibleSux.Ui;
+using Dalamud.Bindings.ImGui;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
@@ -37,14 +40,21 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static INotificationManager NotificationManager { get; private set; } = null!;
     [PluginService] internal static IFateTable FateTable { get; private set; } = null!;
+    [PluginService] internal static ITargetManager TargetManager { get; private set; } = null!;
 
     private readonly Configuration config;
     private readonly WindowSystem windowSystem = new("CrucibleSux");
     private readonly MainWindow mainWindow;
     private readonly BestiaryWatcher bestiary;
     private readonly Session session;
+    private readonly AutoDutyIpc autoDuty;
     private readonly SessionRunner runner;
     private readonly ProgressionRunner journey;
+    private readonly CombatRecorder recorder;
+    private readonly TargetPicker picker;
+
+    /// <summary>Text "/sux report" copies on the next frame: the clipboard is only reachable while ImGui draws.</summary>
+    private string? pendingCopy;
 
     public Plugin()
     {
@@ -52,26 +62,32 @@ public sealed class Plugin : IDalamudPlugin
         var data = new CrucibleData(DataManager);
         this.session = new Session(new CharacterReader(PlayerState, UnlockState, DataManager, this.config), new PluginInventory(PluginInterface, Log), Log);
         this.bestiary = new BestiaryWatcher(AddonLifecycle, PlayerState, Log, this.config, this.Save, data.Beasts);
-        this.runner = new SessionRunner(this.session, new AutoDutyIpc(PluginInterface, Log), this.config, this.Save,
+        this.autoDuty = new AutoDutyIpc(PluginInterface, Log);
+        this.runner = new SessionRunner(this.session, this.autoDuty, this.config, this.Save,
             ClientState, Condition, ObjectTable, GameGui, PlayerState, ChatGui, NotificationManager);
         var game = new GameActions(ObjectTable, Condition, GameGui, PlayerState);
         var nav = new NavmeshIpc(PluginInterface, Log);
         this.journey = new ProgressionRunner(new ProgressionReader(PlayerState, DataManager), game, new Travel(game, nav, ClientState, DataManager),
             new Dialogue(game), nav, new RotationSolverIpc(PluginInterface, Log), this.runner, this.config, PluginInterface, ClientState, FateTable,
             ObjectTable, DataManager, ChatGui, NotificationManager);
+        this.recorder = new CombatRecorder(this.config, data, PluginInterface, ClientState, Condition, ObjectTable, TargetManager, ChatGui, AddonLifecycle,
+            DataManager, Log, this.autoDuty, nav, () => this.runner.Current is not null || this.journey.Running, this.LogHeader);
+        this.picker = new TargetPicker(this.config, data.TargetPriorities, ClientState, Condition, ObjectTable, TargetManager, this.recorder);
         var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save);
-        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs, new JourneyTab(this.journey, this.config, this.Save), this.Save);
+        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs, new JourneyTab(this.journey, this.config, this.Save),
+            new LogTab(this.recorder, this.config, this.Save), this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
 
         var help = new CommandInfo(this.OnCommand)
         {
             HelpMessage = "Open Crucible SUX. \"/sux check\" prints what you can clear in one sitting; \"/sux run\" starts the queue; " +
-                          "\"/sux journey\" starts the Beastmaster journey; \"/sux stop\" stops either.",
+                          "\"/sux journey\" starts the Beastmaster journey; \"/sux stop\" stops either; " +
+                          "\"/sux report\" copies the latest combat log summary for a bug report (\"/sux report full\" copies all of it).",
         };
         CommandManager.AddHandler(Command, help);
         CommandManager.AddHandler(LongCommand, new CommandInfo(this.OnCommand) { HelpMessage = "Same as /sux.", ShowInHelp = false });
 
-        PluginInterface.UiBuilder.Draw += this.windowSystem.Draw;
+        PluginInterface.UiBuilder.Draw += this.OnDraw;
         PluginInterface.UiBuilder.OpenMainUi += this.mainWindow.Toggle;
         PluginInterface.UiBuilder.OpenConfigUi += this.mainWindow.OpenSettings;
         Framework.Update += this.OnUpdate;
@@ -82,12 +98,13 @@ public sealed class Plugin : IDalamudPlugin
         Framework.Update -= this.OnUpdate;
         PluginInterface.UiBuilder.OpenConfigUi -= this.mainWindow.OpenSettings;
         PluginInterface.UiBuilder.OpenMainUi -= this.mainWindow.Toggle;
-        PluginInterface.UiBuilder.Draw -= this.windowSystem.Draw;
+        PluginInterface.UiBuilder.Draw -= this.OnDraw;
         CommandManager.RemoveHandler(LongCommand);
         CommandManager.RemoveHandler(Command);
         this.windowSystem.RemoveAllWindows();
         this.journey.Dispose();
         this.runner.Dispose();
+        this.recorder.Dispose();
         this.bestiary.Dispose();
     }
 
@@ -98,12 +115,57 @@ public sealed class Plugin : IDalamudPlugin
         this.session.Update();
         this.runner.Update();
         this.journey.Update();
+        this.picker.Update();
+        this.recorder.Update();
+    }
+
+    private void OnDraw()
+    {
+        this.windowSystem.Draw();
+        if (this.pendingCopy is not { } text)
+            return;
+        this.pendingCopy = null;
+        ImGui.SetClipboardText(text);
+        ChatGui.Print($"[Crucible SUX] Copied ({text.Length:N0} characters). Paste it into your report.");
+    }
+
+    /// <summary>What every combat log starts with: versions, settings and the character's Crucible state, never its name.</summary>
+    private IReadOnlyList<string> LogHeader(string title)
+    {
+        string mode = this.runner.Current is not null ? "session queue" : this.journey.Running ? "Beastmaster journey" : "played by hand (nothing running)";
+        var lines = new List<string>
+        {
+            $"Crucible SUX {PluginInterface.Manifest.AssemblyVersion}, client language {ClientState.ClientLanguage}, mode: {mode}",
+            $"Settings: {this.config.BoardRunOptions()}, kill dangerous adds first: {(this.config.PickTargets ? "on" : "off")}",
+        };
+        if (this.autoDuty.LastOverrides is { } pushed)
+            lines.Add($"Last AutoDuty settings pushed: {string.Join(", ", pushed.Select(p => $"{p.Key}={p.Value}"))}");
+        var plugins = this.session.Dependencies.SelectMany(r => r.Candidates)
+            .Select(c => c.Installed is { IsLoaded: true } p ? $"{p.InternalName} {p.Version}" : null)
+            .OfType<string>()
+            .Distinct();
+        lines.Add($"Plugins loaded: {string.Join(", ", plugins)}");
+        if (this.session.Snapshot is { } s)
+        {
+            lines.Add($"Beastmaster level {s.JobLevel}, item level {s.ItemLevel?.ToString() ?? "?"}, beasts befriended {s.UnlockedBeasts?.Count.ToString() ?? "?"}, " +
+                      $"best known ranks {string.Join(", ", s.KnownRanks.Take(5))}, boards cleared {string.Join(", ", s.ClearedBoards.Order())}");
+        }
+        return lines;
     }
 
     private void OnCommand(string command, string args)
     {
         switch (args.Trim().ToLowerInvariant())
         {
+            case "report":
+            case "report full":
+                if (this.recorder.Logs.FirstOrDefault() is not { } latest)
+                {
+                    ChatGui.PrintError("[Crucible SUX] No combat log yet: run a board first (recording is in the Log tab).");
+                    break;
+                }
+                this.pendingCopy = args.Contains("full", StringComparison.OrdinalIgnoreCase) ? latest.Full(DateTime.UtcNow) : latest.Summary(DateTime.UtcNow);
+                break;
             case "check":
                 this.PrintSitting();
                 break;

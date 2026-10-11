@@ -22,7 +22,8 @@ public enum DependencyRole
 }
 
 /// <param name="RepoHint">A substring of the plugin's repo URL that marks the build with the features needed (e.g. a fork).</param>
-public sealed record DependencyInfo(string InternalName, string DisplayName, DependencyRole Role, string Purpose, string RepoUrl, string? RepoHint = null);
+/// <param name="Caveat">A known weakness in the Crucible; a loaded plugin with one is a warning, not a pass.</param>
+public sealed record DependencyInfo(string InternalName, string DisplayName, DependencyRole Role, string Purpose, string RepoUrl, string? RepoHint = null, string? Caveat = null);
 
 /// <summary>A plugin as Dalamud reports it.</summary>
 public sealed record InstalledPlugin(string InternalName, Version Version, bool IsLoaded, string? RepoUrl);
@@ -40,7 +41,9 @@ public static class DependencyCatalog
         new("BossModReborn", "BossMod Reborn", DependencyRole.Rotation, "Beastmaster rotation module (work in progress)", "https://github.com/FFXIV-CombatReborn/BossmodReborn"),
         new("WrathCombo", "Wrath Combo", DependencyRole.Rotation, "Rotation (no Beastmaster support seen yet)", "https://github.com/PunishXIV/WrathCombo"),
         new("BossModReborn", "BossMod Reborn", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/FFXIV-CombatReborn/BossmodReborn"),
-        new("BossMod", "BossMod", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/awgil/ffxiv_bossmod"),
+        new("BossMod", "BossMod", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/awgil/ffxiv_bossmod",
+            Caveat: "BossMod does not put the First Board's dangerous adds first (the Pas de Seul mage, the Ogre's wisps); BossMod Reborn does. " +
+                    "Crucible SUX's own target priority covers it when it is on"),
         new("AutoDuty", "AutoDuty (erdelf)", DependencyRole.BoardDriver, "Lauda's menus, team setup, board movement", "https://github.com/erdelf/AutoDuty", "erdelf"),
         new("Lifestream", "Lifestream", DependencyRole.Travel, "Teleports", "https://github.com/NightmareXIV/Lifestream"),
         new("TextAdvance", "TextAdvance", DependencyRole.Dialogs, "Advancing NPC text", "https://github.com/NightmareXIV/TextAdvance"),
@@ -109,6 +112,8 @@ public static class DependencyCatalog
             return new(info, p, CheckStatus.Unknown, $"Installed ({p.Version}) but disabled");
         if (info.RepoHint is not null && p.RepoUrl?.Contains(info.RepoHint, StringComparison.OrdinalIgnoreCase) != true)
             return new(info, p, CheckStatus.Warn, $"{info.DisplayName}: this build ({p.RepoUrl ?? "unknown repo"}) may lack Crucible support; the {info.RepoHint} build has it");
+        if (info.Caveat is not null)
+            return new(info, p, CheckStatus.Warn, $"Loaded ({p.Version}). {info.Caveat}");
         return new(info, p, CheckStatus.Pass, $"Loaded ({p.Version})");
     }
 }

@@ -116,7 +116,17 @@ a Beastmaster Crucible AI (Snarl, Challenge, dispel, interrupt) that BossMod Reb
 **Cast times differ between the forks.** For example, BossMod Reborn says Fanaticism is 9 s while the client and the
 original BossMod say 6 s. Higher degrees may change cast times; this is unverified.
 
-## 5. What to build (proposal, not started)
+## 5. What to build
+
+Status (2026-10-11): items 1-3 are built and unit-tested but not yet tried in game. Item 4 waits for the addon trace.
+
+- **Item 1:** `RunOptions` and `AutoDutyOverrides` in Core; Settings › Board runs.
+- **Item 2:** `TargetPriority` in Core; `Automation/TargetPicker.cs`.
+- **Item 3:** `CombatLog` and `AoeShape` in Core; `Diagnostics/CombatRecorder.cs`, the Log tab and `/sux report`.
+- **Differences from the proposal:**
+  - Score mode turns rest off for the whole board, not "except before the boss": AutoDuty has no such switch.
+  - BossMod Reborn is preferred through a Plugins-tab warning on the original BossMod, not a hard requirement.
+  - The vnavmesh waypoint call (`vnavmesh.Path.ListWaypoints`) is assumed from vnavmesh's IPC. If it is missing, the log simply has no path lines.
 
 1. **Run settings (small).** Push `Meta.Crucible.RecommendedTeamCap=3` and `Meta.Crucible.Shop=false`. Add Settings
    for a score goal: "Clear" keeps AutoDuty's defaults; "Score" also turns off items, treasure and rest except before

@@ -14,6 +14,8 @@ Queue the boards, step away, and come back to a report.
   - it watches every run and stops one that is stuck
   - it retries a run that failed outside the board, and stops the session if anything goes wrong inside one
   - it reports in chat and with a notification
+
+  By default a run registers only your 3 best beasts (the Beast Squad III bonus) and keeps out of the board shop (Coin Clutcher). Score mode in Settings also skips items, treasure and campsite rest. In board battles it targets the dangerous adds first, from the game's own enemy intel: the Pas de Seul's mage and the Ogre's wisps.
 - **History:** every run per character, with its outcome, duration and first clears.
 - **Journey (opt-in, each part off by default):** takes a character from the unlock quest to level 50 with all 50 beasts.
   - **Job quests:** all 13, including the captures, levels and boards each quest asks for.
@@ -32,6 +34,13 @@ Queue the boards, step away, and come back to a report.
   - AutoDuty (erdelf's build)
   - Lifestream
   - TextAdvance
+- **Log:** a combat log of each board, for bug reports. It records:
+  - every enemy cast, with its area from the game data and where you stood
+  - hits, HP, statuses and KOs, for you and your beasts
+  - targets, movement and vnavmesh paths
+  - AutoDuty and the Crucible windows
+
+  "Copy summary" copies one Discord-sized message; "Copy full log" copies everything. Your character's name is replaced with `<you>`.
 
 Commands:
 - `/sux` opens the window.
@@ -39,6 +48,7 @@ Commands:
 - `/sux run` starts the queue.
 - `/sux journey` starts the Beastmaster journey.
 - `/sux stop` stops either.
+- `/sux report` copies the latest combat log summary; `/sux report full` copies the whole log.
 
 Neither the session queue nor the journey has been tested in game yet. The journey was built from the game's data and public guides only. Treat both as a beta and stay nearby for the first runs.
 

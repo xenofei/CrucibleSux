@@ -28,6 +28,9 @@ public sealed class CrucibleData
     /// <summary>Each board's battles, boss battle first.</summary>
     public IReadOnlyDictionary<int, IReadOnlyList<BattleInfo>> Battles { get; }
 
+    /// <summary>Which board enemies die first, by BNpcName row (<see cref="TargetPriority"/>).</summary>
+    public IReadOnlyDictionary<uint, int> TargetPriorities { get; }
+
     public CrucibleData(IDataManager data)
     {
         var petNames = data.GetExcelSheet<Pet>();
@@ -76,6 +79,7 @@ public sealed class CrucibleData
         this.Locations = locations;
         this.Descriptions = descriptions;
         this.Battles = ReadBattles(data);
+        this.TargetPriorities = TargetPriority.ByName(this.Battles.Values.SelectMany(b => b));
     }
 
     private static Dictionary<int, IReadOnlyList<BattleInfo>> ReadBattles(IDataManager data)
@@ -84,6 +88,21 @@ public sealed class CrucibleData
         var details = data.GetSubrowExcelSheet<XBMBattleDetail>();
         var resists = data.GetExcelSheet<BNpcResist>();
         var names = data.GetExcelSheet<BNpcName>();
+        var intel = data.Excel.GetSheet<RawRow>(name: "XBMBattleDetailAction");
+        var actions = data.GetExcelSheet<Lumina.Excel.Sheets.Action>();
+
+        // XBMBattleDetail columns 2 and 3 point at XBMBattleDetailAction rows: the two abilities the enemy intel shows.
+        IEnumerable<EnemyAbility> Abilities(params ushort[] rows)
+        {
+            foreach (ushort row in rows)
+            {
+                if (row == 0 || !intel.TryGetRow(row, out var r))
+                    continue;
+                uint id = r.ReadUInt32Column(0);
+                yield return new EnemyAbility(id, actions.GetRowOrDefault(id)?.Name.ExtractText() ?? $"Action {id}",
+                    (IntelTarget)r.ReadUInt8Column(1), (IntelShape)r.ReadUInt8Column(2), r.ReadUInt32Column(3));
+            }
+        }
 
         var result = new Dictionary<int, IReadOnlyList<BattleInfo>>();
         foreach (var board in Boards.All)
@@ -105,7 +124,8 @@ public sealed class CrucibleData
                         Capitalize(names.GetRowOrDefault(e.Unknown0)?.Singular.ExtractText() ?? $"Enemy {e.Unknown0}"),
                         (Element)e.Unknown10,
                         new EnemyRatings(e.Unknown5, e.Unknown6, e.Unknown7, e.Unknown8, e.Unknown9),
-                        resists.GetRowOrDefault(e.Unknown4) is { } res ? ResistMask(res) : (ushort)0))
+                        resists.GetRowOrDefault(e.Unknown4) is { } res ? ResistMask(res) : (ushort)0,
+                        Abilities(e.Unknown2, e.Unknown3).ToList()))
                     .ToList();
                 battles.Add(new BattleInfo(board.Number, i, i == 0, list));
             }

@@ -21,13 +21,14 @@ public sealed class MainWindow : Window
     private readonly Action save;
     private readonly SessionTabs sessionTabs;
     private readonly JourneyTab journeyTab;
+    private readonly LogTab logTab;
     private bool selectSettings;
     private bool missingOnly;
     private int teamBoard = 1;
     private (int Board, int Generation)? teamKey;
     private TeamPlan? team;
 
-    public MainWindow(Session session, CrucibleData data, Configuration config, BestiaryWatcher bestiary, SessionTabs sessionTabs, JourneyTab journeyTab, Action save)
+    public MainWindow(Session session, CrucibleData data, Configuration config, BestiaryWatcher bestiary, SessionTabs sessionTabs, JourneyTab journeyTab, LogTab logTab, Action save)
         : base("Crucible SUX###CrucibleSuxMain")
     {
         this.session = session;
@@ -36,6 +37,7 @@ public sealed class MainWindow : Window
         this.bestiary = bestiary;
         this.sessionTabs = sessionTabs;
         this.journeyTab = journeyTab;
+        this.logTab = logTab;
         this.save = save;
         this.SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(560, 380) };
     }
@@ -60,6 +62,7 @@ public sealed class MainWindow : Window
         Tab("Beasts", this.DrawBeasts);
         Tab("Teams", this.DrawTeams);
         Tab("Plugins", this.DrawPlugins);
+        Tab("Log", this.logTab.Draw);
         if (ImGui.BeginTabItem("Settings", this.selectSettings ? ImGuiTabItemFlags.SetSelected : ImGuiTabItemFlags.None))
         {
             this.selectSettings = false;
@@ -342,6 +345,40 @@ public sealed class MainWindow : Window
             this.save();
         }
         ImGui.TextDisabled("Inside a board, a run with no movement, combat, HP or window change for this long is stopped.");
+
+        ImGui.Spacing();
+        ImGui.TextUnformatted("Board runs");
+        bool three = this.config.RunTeamOfThree;
+        if (ImGui.Checkbox("Register only the 3 best beasts", ref three))
+        {
+            this.config.RunTeamOfThree = three;
+            this.save();
+        }
+        ImGui.TextDisabled("Beast Squad III (1-3 beasts) is the biggest score bonus on every board. Off: AutoDuty registers a full team, which clears more safely but scores less.");
+        bool shop = this.config.RunShop;
+        if (ImGui.Checkbox("Let AutoDuty buy from the board shop", ref shop))
+        {
+            this.config.RunShop = shop;
+            this.save();
+        }
+        ImGui.TextDisabled("Any purchase forfeits Coin Clutcher (500).");
+        bool score = this.config.RunGoal == RunGoal.Score;
+        if (ImGui.Checkbox("Score mode: no items, treasure or campsite rest", ref score))
+        {
+            this.config.RunGoal = score ? RunGoal.Score : RunGoal.Clear;
+            this.save();
+        }
+        if (score)
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "Riskier: AutoDuty then has no way to heal you or your beasts, and the shop stays closed.");
+        else
+            ImGui.TextDisabled("Keeps Economic Ethos, Nameday Attire and Sleepless Survival, at the cost of the ways AutoDuty recovers.");
+        bool pick = this.config.PickTargets;
+        if (ImGui.Checkbox("Kill dangerous adds first", ref pick))
+        {
+            this.config.PickTargets = pick;
+            this.save();
+        }
+        ImGui.TextDisabled("Targets enemies that buff others (the Pas de Seul's mage) and adds with arena-wide attacks (the Ogre's wisps) first, from the game's enemy intel.");
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Rankings");

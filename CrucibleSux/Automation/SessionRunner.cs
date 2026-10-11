@@ -210,7 +210,7 @@ public sealed class SessionRunner : IDisposable
             switch (c.Kind)
             {
                 case CommandKind.StartBoard:
-                    if (this.autoDuty.Start(c.Board!, this.rotationPlugin) is { } error)
+                    if (this.autoDuty.Start(c.Board!, this.rotationPlugin, this.config.BoardRunOptions()) is { } error)
                         o.StartFailed(now, error);
                     break;
                 case CommandKind.StopExecutor:

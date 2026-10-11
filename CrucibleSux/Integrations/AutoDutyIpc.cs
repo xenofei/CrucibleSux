@@ -69,28 +69,24 @@ public sealed class AutoDutyIpc
         }
     }
 
+    /// <summary>The settings the last <see cref="Start"/> pushed, for the combat log; null before the first.</summary>
+    public IReadOnlyDictionary<string, string>? LastOverrides { get; private set; }
+
     /// <summary>Starts one run of a board. Returns null on success, else why it could not start.</summary>
     /// <param name="rotationPlugin">The rotation plugin AutoDuty should switch on in the board: an AutoDuty RotationPlugin name.</param>
-    public string? Start(BoardInfo board, string rotationPlugin)
+    public string? Start(BoardInfo board, string rotationPlugin, RunOptions options)
     {
-        var overrides = new Dictionary<string, string>
-        {
-            ["Meta.DutyModeEnum"] = "Crucible",
-            ["Meta.Crucible.Degree"] = "Standard",
-            ["DutyConfig.AutoExitDuty"] = "true",
-            ["DutyConfig.AutoManageRotationPluginState"] = "true",
-            ["DutyConfig.AutoManageBossModAISettings"] = "true",
-            ["DutyConfig.UsingAlternativeRotationPlugin"] = "false",
-            ["DutyConfig.RotationPlugin"] = rotationPlugin,
-        };
+        var overrides = AutoDutyOverrides.For(rotationPlugin, options);
         try
         {
-            if (!this.pushOverrides.InvokeFunc(overrides))
+            // AutoDuty's IPC takes a concrete Dictionary.
+            if (!this.pushOverrides.InvokeFunc(new Dictionary<string, string>(overrides)))
                 return "AutoDuty rejected the run settings; its settings may have changed since this Crucible SUX build.";
             this.pushed = true;
+            this.LastOverrides = overrides;
             // One loop, bare mode: AutoDuty's own before, between and after-loop actions (repairs, logout...) stay off.
             this.run.InvokeAction(board.Territory, 1, true);
-            this.log.Information($"AutoDuty asked to run the {board.Name} (territory {board.Territory}) with {rotationPlugin}");
+            this.log.Information($"AutoDuty asked to run the {board.Name} (territory {board.Territory}) with {rotationPlugin}, {options}");
             return null;
         }
         catch (Exception ex)

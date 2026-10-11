@@ -8,7 +8,17 @@ public readonly record struct EnemyRatings(int Strength, int Intelligence, int P
 
 /// <summary>One enemy of a Crucible battle (one XBMBattleDetail subrow).</summary>
 /// <param name="ResistMask">Bit i set when the enemy's BNpcResist row resists status i (same order as <see cref="BeastInfo.InflictsMask"/>).</param>
-public sealed record EnemyInfo(uint NameId, string Name, Element Element, EnemyRatings Ratings, ushort ResistMask);
+/// <param name="Abilities">The enemy intel's abilities (XBMBattleDetail columns 2 and 3); empty when unknown.</param>
+public sealed record EnemyInfo(uint NameId, string Name, Element Element, EnemyRatings Ratings, ushort ResistMask, IReadOnlyList<EnemyAbility> Abilities)
+{
+    public EnemyInfo(uint nameId, string name, Element element, EnemyRatings ratings, ushort resistMask)
+        : this(nameId, name, element, ratings, resistMask, [])
+    {
+    }
+}
 
-/// <summary>One battle of a board (an XBMContentBattle subrow): the boss battle is the board's first subrow.</summary>
+/// <summary>
+/// One battle of a board (an XBMContentBattle subrow): the boss battle is the board's first subrow. A battle's main
+/// enemy is the first of <see cref="Enemies"/> (XBMBattleDetail subrow 0); the rest are its adds.
+/// </summary>
 public sealed record BattleInfo(int Board, int Index, bool IsBoss, IReadOnlyList<EnemyInfo> Enemies);

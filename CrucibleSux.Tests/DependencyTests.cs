@@ -24,6 +24,16 @@ public class DependencyTests
     }
 
     [Fact]
+    public void The_original_BossMod_works_but_warns_about_the_first_boards_adds()
+    {
+        var s = DependencyCatalog.Evaluate(FullSet.Select(p => p.InternalName == "BossModReborn" ? p with { InternalName = "BossMod" } : p));
+
+        var mechanics = Role(s, DependencyRole.Mechanics);
+        Assert.Equal(CheckStatus.Warn, mechanics.Status);
+        Assert.Contains("BossMod Reborn does", mechanics.Detail);
+    }
+
+    [Fact]
     public void A_missing_required_role_fails_and_a_missing_optional_one_warns()
     {
         var s = DependencyCatalog.Evaluate(FullSet.Where(p => p.InternalName is not ("vnavmesh" or "Lifestream")));

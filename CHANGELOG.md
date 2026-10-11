@@ -1,5 +1,28 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Log tab and `/sux report`:** a combat log of every board, which you copy and paste into a bug report.
+  - **What it records:**
+    - each enemy cast: its area from the game data, where you stood, and whether you were inside when it went off
+    - HP, statuses and KOs, for you and your beasts
+    - enemies appearing, with their target priority
+    - target changes
+    - movement, and whether you walked into a marked area
+    - vnavmesh paths, and whether a path ends inside an area
+    - AutoDuty's state, the Crucible windows and system messages
+  - **Copying:** "Copy summary" fits one Discord message; "Copy full log" copies everything. The last 30 logs are also saved in the plugin's config folder.
+  - **Privacy:** your character's name is replaced with `<you>`.
+- **Kill dangerous adds first (Settings, on by default):** in board battles, targets enemies that buff others (the Pas de Seul's mage) and adds with arena-wide attacks (the Ogre's wisps) first. The ranking comes from the game's enemy intel. It backs off for 30 s when something else keeps switching the target away.
+- **Board run settings:** register only your 3 best beasts (on by default, for Beast Squad III), let AutoDuty use the board shop (off by default, for Coin Clutcher), and Score mode (no items, treasure or campsite rest).
+
+### Changed
+
+- Board runs now push AutoDuty's team cap of 3 and turn the shop off unless you change the new settings.
+- The Plugins tab warns when the original BossMod is the mechanics plugin: it does not put the First Board's dangerous adds first, and BossMod Reborn does.
+
 ## [0.2.0] - 2026-10-11
 
 ### Added
