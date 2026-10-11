@@ -1,0 +1,33 @@
+[
+  {
+    "Author": "Michiru Tsukikage",
+    "Name": "Crucible SUX",
+    "InternalName": "CrucibleSux",
+    "AssemblyVersion": "0.1.0.0",
+    "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting, suggests a team per board, and checks the companion plugins the later automation will drive.\nThis release is read-only: it automates nothing yet.",
+    "ApplicableVersion": "any",
+    "RepoUrl": "https://github.com/xenofei/CrucibleSux",
+    "Tags": [
+      "beastmaster",
+      "crucible",
+      "tracker",
+      "planner"
+    ],
+    "DalamudApiLevel": 15,
+    "LoadRequiredState": 0,
+    "LoadSync": false,
+    "CanUnloadAsync": false,
+    "LoadPriority": 0,
+    "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
+    "Punchline": "Set-and-forget Unbroken eXecutor: Crucible of the Unbroken progress, readiness and team planning.",
+    "AcceptsFeedback": true,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.1.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.1.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.1.0/latest.zip",
+    "LastUpdate": 1791738126,
+    "DownloadCount": 0,
+    "IsHide": false,
+    "IsTestingExclusive": false,
+    "Changelog": "Added\n\n- Overview of each board's clear, third degree, Apex and Legendary, plus the Crucible achievements and their next tier.\n- One-sitting check: whether you can clear every remaining board in one go and, if not, which board stops you and why. Also available as `/sux check`.\n- Beasts list: what you have befriended, the ranks read from the Master's Bestiary, and where to find missing beasts.\n- Experimental team suggestions per board and per battle.\n- Companion plugin check for navigation, rotation, mechanics, the board driver, travel and dialogs.\n- Rankings opt-in per board, off by default, for the automation releases to come."
+  }
+]
