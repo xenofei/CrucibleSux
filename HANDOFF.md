@@ -74,7 +74,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 
 **v0.2.2 (2026-10-11, owner approved "Release it"):** at the tester's request, only BossMod Reborn counts for mechanics. If the original BossMod is loaded, the Mechanics role fails and the session is blocked, because it blocks movement while casting. Installed but disabled passes. `DependencyInfo.Caveat` was replaced by `Conflict`. Tests: 152.
 
-**Turning the original BossMod off for a run (2026-10-11, on main, unreleased; not tested in game):**
+**Turning the original BossMod off for a run (2026-10-11, released as v0.2.3 on the owner's "Release"; not tested in game):**
 - **Owner's request:** turn BossMod off while the automation runs, back on afterwards, with a prompt first.
 - **Core:** `BossModSwitch.cs` is the state machine.
   - It sends `/xldisableplugintemp BossMod`, then waits up to 30 s for BossMod to unload.
