@@ -75,3 +75,5 @@ dotnet format CrucibleSux.sln --verify-no-changes
 ## Licence
 
 MIT. See [LICENSE](LICENSE).
+
+The wild-beast spawn points in `CrucibleSux.Core/BeastSources.cs` are derived from [FFXIV Teamcraft](https://github.com/ffxiv-teamcraft/ffxiv-teamcraft)'s `monsters.json` (MIT, Copyright (c) 2017 Flavien Normand).

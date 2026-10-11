@@ -22,7 +22,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - `Preflight.cs`: the guard rails.
   - `RunHistory.cs`: run records and the report.
   - `SessionQueue.cs`.
-  - 57 tests in total.
+  - 65 tests in total.
 - **Plugin:**
   - `Integrations/AutoDutyIpc.cs`: overrides, plus `Run(territory, 1, bareMode)`.
   - `Automation/SessionRunner.cs`
@@ -34,7 +34,21 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 - **AutoDuty source used:** commit 4a0dfdc (2026-10-09). The notes are in the PLAN status. The raw sources were in the session scratchpad and are gone after `/clear`; refetch them with `gh api repos/erdelf/AutoDuty/contents/<path>?ref=<sha> -H "Accept: application/vnd.github.raw"`.
 
 ## Next
-1. Plan the opt-in quest, capture and leveling automation the owner asked for (research: docs/research/06-quests-leveling-capture.md).
+1. **Opt-in quests, leveling and beast collection.** The owner directed full automation on 2026-10-11: all 13 job quests, the fastest leveling, and all 50 beasts. Everything is built from online sources and game data only, since the owner has no Beastmaster for live traces. Research is in docs/research/06–09 and the data in docs/data/bst-progression.md.
+   - **Done in Core (green, 92 tests):**
+     - `QuestScripts.cs`: native step scripts for all 13 quests. We chose this over Questionable, which loads extra paths only in debug mode and is AGPL.
+     - `BeastSources.cs`: all 50 beasts, with kin, wild BNpcName ids, spawn points (from Teamcraft and the wiki), gourds, prices and gates.
+     - `Progression.cs`: the planner. Quests come first, then beasts, then levels; a blocked quest falls through to the other options.
+   - **Next, the plugin layer:**
+     - IPC adapters for vnavmesh, Lifestream, RSR and BMR
+     - Navigator; Interactor and dialogue (waiting on research doc 10 for TextAdvance and the cutscene APIs)
+     - QuestRunner
+     - CaptureRunner: Capture at low HP, then the kill, checking status 4626
+     - FateRunner: measures EXP per hour and syncs level
+     - ShopRunner: ShopExchangeItem, verified at run time
+     - gourd use
+     - a ProgressionRunner with a watchdog
+     - three opt-in toggles (off by default), a UI tab and commands
 2. **Release:** once the owner approves a push, bump `<Version>` to 0.2.0.0, rename `[Unreleased]` to `[0.2.0] - date`, and tag v0.2.0. Ask before pushing or tagging.
 3. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
    - Run tab preflight
@@ -51,7 +65,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 `dotnet build CrucibleSux.sln -c Release -warnaserror; dotnet test --project CrucibleSux.Tests -c Release --no-build; dotnet format CrucibleSux.sln --verify-no-changes`
 
 ## Open questions
-- XBMPet location key 2 (13 special beasts): the source is not decoded.
+- XBMPet location key 2 is decoded: the 12 instanced-duty beasts, every one sold as a gourd.
 - XBMContent recommended rank (3/8/13/18/23) disagrees with the wiki (1/6/11/16/21). The code uses the sheet.
 - XBMBattleDetail columns 5–9 are read as STR/INT/PR/MR/CON ratings. Unverified.
 - **Phase 2, unverified:**
