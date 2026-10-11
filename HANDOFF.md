@@ -49,7 +49,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 - The DataDump tool now prints all 33 bonus columns and decodes the enemy intel (XBMBattleDetailAction).
 - The owner approved §5 items 1–3 and asked for a log the player can copy and paste. Item 4 (beast healing) waits for the addon trace.
 
-**§5 items 1–3 built (2026-10-11, local commit, not pushed):**
+**§5 items 1–3 built and released as v0.2.1 (2026-10-11):**
 - **Run settings:**
   - Core: `RunOptions.cs` holds `RunOptions` and `AutoDutyOverrides`.
   - `Configuration` gains RunTeamOfThree (on), RunShop (off), RunGoal (Clear) and PickTargets (on).
@@ -73,7 +73,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - AutoDuty accepting `Meta.Crucible.TeamMode` and `RecommendedTeamCap` (names read from 4a0dfdc)
 
 ## Next
-0. **Release 0.2.1** (version bump, push, tag) only with the owner's approval. Then ask Maple to replay the First Board and send `/sux report` (and the full log if a hit or KO shows).
+0. **v0.2.1 is out** (owner approved "bump and push"). Check that the Release workflow committed pluginmaster.json for v0.2.1. Then ask Maple to replay the First Board and send `/sux report` (and the full log if a hit or KO shows). Any later push or release needs fresh approval.
 1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
    - Run tab preflight
    - AutoDuty takes the overrides (AutoDuty log: "Applied 10 override(s)" with the defaults; 13 in Score mode)
