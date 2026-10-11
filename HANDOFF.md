@@ -40,7 +40,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 - **Tests:** 131.
 - **Review:** the fresh-context review found 3 high, 7 medium and 6 low issues; the owner said "fix all", and all are fixed (PLAN.md Phase 2b block). Gourds are bought only with "Collect every beast" on (the recommendation for finding 16, applied under "fix all"; the owner can reverse it).
 
-**v0.2.0** (2026-10-11): the owner approved the push and release. `release.yml` builds the release and commits pluginmaster.json to main itself.
+**v0.2.0 released (2026-10-11):** main was fast-forwarded to `phase-2-orchestrator` (b53192e) and tagged v0.2.0. CI and the Release workflow passed. The release has latest.zip and SHA256SUMS.txt, and `release.yml` committed pluginmaster.json for v0.2.0 to main (1ab4751). The branch is now merged; work continues on main or a new branch.
 
 ## Next
 1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
