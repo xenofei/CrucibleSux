@@ -28,6 +28,13 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>Minutes without any change inside a board before the watchdog stops the run.</summary>
     public int StuckMinutes { get; set; } = (int)OrchestratorSettings.Default.StuckAfter.TotalMinutes;
 
+    /// <summary>The Beastmaster journey's parts (docs/PLAN.md Phase 2b); each stays off until the player turns it on.</summary>
+    public bool ProgressQuests { get; set; }
+
+    public bool ProgressBeasts { get; set; }
+
+    public bool ProgressLeveling { get; set; }
+
     /// <summary>Every run per character (by content id), oldest first, capped at <see cref="HistoryCap"/>.</summary>
     public Dictionary<ulong, List<RunRecord>> Runs { get; set; } = [];
 

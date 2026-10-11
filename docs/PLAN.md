@@ -118,6 +118,37 @@ Each feature names the player gripe it answers (from 02-player-gripes.md).
   - whether AutoDuty's `IsStopped` stays false through zoning
   - the 4-minute stuck default
 
+**Status of Phase 2b, the Beastmaster journey (2026-10-11): built, not yet tested in game.** The owner asked on 2026-10-11 for the job quests, levelling and beast collection, each opt-in. It was built from game data and public sources only (docs/research/06–10), because the owner has no Beastmaster to trace.
+
+- **Core (tested):**
+  - `QuestScripts.cs`: the 13 quests as step scripts.
+  - `BeastSources.cs`: all 50 beasts.
+  - `KornagoShop.cs`: the two exchange shops and their visible line order.
+  - `Leveling.cs`: the EXP table, the FATE picker, zones per band, the EXP-per-hour meter, and capture tactics.
+  - `Progression.cs`: the planner.
+- **Plugin:**
+  - `Automation/ProgressionRunner.cs`: the tick loop, the watchdog (15 minutes) and the 3-strike stop.
+  - `GameActions.cs`: interact, actions, emotes, items, horns, addons and gear.
+  - `Travel.cs`: teleport to the nearest attuned aetheryte, mount, then vnavmesh.
+  - `Dialogue.cs`: answers only the windows it expects.
+  - `Game/ProgressionReader.cs`.
+  - `Integrations/NavmeshIpc.cs` and `RotationSolverIpc.cs`.
+  - `Ui/JourneyTab.cs` and `/sux journey`.
+- **Boards** the quests or remnant farming need run through the Phase 2 session runner, one board at a time.
+- **Known gaps:**
+  - No API is known for putting a beast on a Battlehorn, so the runner asks the player and resumes by itself.
+  - Quest menu answers are matched against English text.
+  - Collection FATEs (hand-ins) are skipped.
+- **Unverified until a play-test:**
+  - every step script (positions, the sequences, which steps need an item, an emote or a fight)
+  - the Talk click and JournalAccept (44) and JournalResult (37) buttons
+  - the shop flow: the SelectIconString entry names, the `ShopExchangeItem` callback `[0, index, quantity]`, the dialog confirm `[0]`, and whether quest-gated lines are hidden
+  - capture: whether auto-attacks alone weaken the beast, and the odds
+  - wild-beast spawn points (Teamcraft and the wiki; the Central Shroud ones are wiki only)
+  - FATE EXP against the wiki table
+  - the gear setup after the unlock quest
+  - RSR's Manual mode attacking the current target
+
 **Unverifiable without the game:** in-game behaviour, the addon callback indexes, the capture flow, and boss timing. Phases 2–5 need sessions with the game running. I can launch and drive it per your global rules, or you play-test.
 
 ## 6. Decisions (owner, 2026-10-11)

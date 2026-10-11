@@ -18,10 +18,17 @@ Crucible SUX has no network code. It sends nothing anywhere.
   - whether AutoDuty is running
 
   The watchdog uses these to tell a stuck run from a working one.
+- While the journey runs, it also reads:
+  - your quest progress for the Beastmaster quests, and your levels on the other combat jobs (for the unlock quest)
+  - your Beastmaster EXP
+  - the gourds in your inventory
+  - your gear sets and Battlehorns
+  - nearby characters, monsters and FATEs
+  - the text of dialogue and shop windows that open, so it can answer only the ones it expects
 
 ## What it talks to
 
-Only other plugins in the same game process, through Dalamud's IPC. When you start a session, it asks AutoDuty to run a board with temporary settings (Crucible mode, Standard degree, which rotation plugin to use). AutoDuty restores your own settings when it stops.
+Only other plugins in the same game process, through Dalamud's IPC. When you start a session, it asks AutoDuty to run a board with temporary settings (Crucible mode, Standard degree, which rotation plugin to use). AutoDuty restores your own settings when it stops. While the journey runs, it asks vnavmesh to walk to places and switches Rotation Solver Reborn's auto-rotation on and off.
 
 ## What it stores
 
@@ -32,6 +39,7 @@ Dalamud's plugin configuration file (`CrucibleSux.json` in your pluginConfigs fo
   - each beast's rank and EXP, and the time its page was last read
   - the run history: when each run started, the board, the attempt, the outcome, the duration and a one-line detail (up to 500 runs)
 - the session queue and the session settings
+- which parts of the journey you turned on
 
 It does not store character names. To erase the per-character data:
 - **Ranks:** Settings → Forget all saved ranks.

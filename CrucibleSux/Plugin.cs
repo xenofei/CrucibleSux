@@ -36,6 +36,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
     [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
     [PluginService] internal static INotificationManager NotificationManager { get; private set; } = null!;
+    [PluginService] internal static IFateTable FateTable { get; private set; } = null!;
 
     private readonly Configuration config;
     private readonly WindowSystem windowSystem = new("CrucibleSux");
@@ -43,6 +44,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly BestiaryWatcher bestiary;
     private readonly Session session;
     private readonly SessionRunner runner;
+    private readonly ProgressionRunner journey;
 
     public Plugin()
     {
@@ -52,13 +54,19 @@ public sealed class Plugin : IDalamudPlugin
         this.bestiary = new BestiaryWatcher(AddonLifecycle, PlayerState, Log, this.config, this.Save, data.Beasts);
         this.runner = new SessionRunner(this.session, new AutoDutyIpc(PluginInterface, Log), this.config, this.Save,
             ClientState, Condition, ObjectTable, GameGui, PlayerState, ChatGui, NotificationManager);
+        var game = new GameActions(ObjectTable, Condition, GameGui, PlayerState);
+        var nav = new NavmeshIpc(PluginInterface, Log);
+        this.journey = new ProgressionRunner(new ProgressionReader(PlayerState, DataManager), game, new Travel(game, nav, ClientState, DataManager),
+            new Dialogue(game), nav, new RotationSolverIpc(PluginInterface, Log), this.runner, this.config, PluginInterface, ClientState, FateTable,
+            ObjectTable, DataManager, ChatGui, NotificationManager);
         var sessionTabs = new SessionTabs(this.runner, this.session, this.config, PlayerState, this.Save);
-        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs, this.Save);
+        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs, new JourneyTab(this.journey, this.config, this.Save), this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
 
         var help = new CommandInfo(this.OnCommand)
         {
-            HelpMessage = "Open Crucible SUX. \"/sux check\" prints what you can clear in one sitting; \"/sux run\" starts the queue; \"/sux stop\" stops it.",
+            HelpMessage = "Open Crucible SUX. \"/sux check\" prints what you can clear in one sitting; \"/sux run\" starts the queue; " +
+                          "\"/sux journey\" starts the Beastmaster journey; \"/sux stop\" stops either.",
         };
         CommandManager.AddHandler(Command, help);
         CommandManager.AddHandler(LongCommand, new CommandInfo(this.OnCommand) { HelpMessage = "Same as /sux.", ShowInHelp = false });
@@ -78,6 +86,7 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(LongCommand);
         CommandManager.RemoveHandler(Command);
         this.windowSystem.RemoveAllWindows();
+        this.journey.Dispose();
         this.runner.Dispose();
         this.bestiary.Dispose();
     }
@@ -88,6 +97,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         this.session.Update();
         this.runner.Update();
+        this.journey.Update();
     }
 
     private void OnCommand(string command, string args)
@@ -100,9 +110,14 @@ public sealed class Plugin : IDalamudPlugin
             case "run":
                 this.StartSession();
                 break;
+            case "journey":
+                this.StartJourney();
+                break;
             case "stop":
-                if (this.runner.Current is null)
-                    ChatGui.Print("[Crucible SUX] No session is running.");
+                if (this.runner.Current is null && !this.journey.Running)
+                    ChatGui.Print("[Crucible SUX] Nothing is running.");
+                // The journey first: it owns a board run it started.
+                this.journey.Stop("Stopped with /sux stop.");
                 this.runner.Stop("Stopped with /sux stop.");
                 break;
             default:
@@ -124,6 +139,20 @@ public sealed class Plugin : IDalamudPlugin
         ChatGui.PrintError("[Crucible SUX] The session cannot start:");
         foreach (var check in checks.Where(c => c.Status == CheckStatus.Fail))
             ChatGui.PrintError($"[Crucible SUX] {check.Label}: {check.Detail}");
+    }
+
+    private void StartJourney()
+    {
+        if (this.journey.Running)
+        {
+            ChatGui.Print("[Crucible SUX] The journey is already running.");
+            return;
+        }
+        if (this.journey.Start())
+            return;
+        ChatGui.PrintError("[Crucible SUX] The journey cannot start:");
+        foreach (var problem in this.journey.Checks())
+            ChatGui.PrintError($"[Crucible SUX] {problem}");
     }
 
     private void PrintSitting()

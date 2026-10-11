@@ -15,6 +15,12 @@ Queue the boards, step away, and come back to a report.
   - it retries a run that failed outside the board, and stops the session if anything goes wrong inside one
   - it reports in chat and with a notification
 - **History:** every run per character, with its outcome, duration and first clears.
+- **Journey (opt-in, each part off by default):** takes a character from the unlock quest to level 50 with all 50 beasts.
+  - **Job quests:** all 13, including the captures, levels and boards each quest asks for.
+  - **Beasts:** captures the wild ones, uses gourds you hold, and buys the rest from the Kornago merchant (farming remnants on the highest cleared board when short).
+  - **Levelling:** FATEs in the zones that suit each level band, picked by expected EXP per second, with level sync. It moves zone when another one has measured faster.
+
+  It needs vnavmesh and Rotation Solver Reborn. You put beasts on Battlehorns yourself when asked, because no API to do it is known yet.
 - **Overview:** each board's clear, third degree, Apex and Legendary, plus the Crucible achievements and how far you are from each tier.
 - **One sitting:** whether you can clear every remaining board in one go and, if not, which board stops you and why. It checks job level, unlock quests, beasts befriended, item level, roster size and beast ranks.
 - **Beasts:** all 50 beasts, which you have befriended, their ranks and where to find the ones you are missing. Ranks are read when you open a beast's page in the Master's Bestiary.
@@ -30,13 +36,14 @@ Queue the boards, step away, and come back to a report.
 Commands:
 - `/sux` opens the window.
 - `/sux check` prints what this sitting can cover.
-- `/sux run` starts the queue, and `/sux stop` stops it.
+- `/sux run` starts the queue.
+- `/sux journey` starts the Beastmaster journey.
+- `/sux stop` stops either.
 
-The session queue has not yet been tested in game. Treat it as a beta and stay nearby for the first runs.
+Neither the session queue nor the journey has been tested in game yet. The journey was built from the game's data and public guides only. Treat both as a beta and stay nearby for the first runs.
 
 Still to come:
-- route, treasure and shop decisions made by Crucible SUX itself
-- EXP and capture loops
+- route, treasure and shop decisions on the boards made by Crucible SUX itself
 - mechanics for the Crucible bosses
 
 See [docs/PLAN.md](docs/PLAN.md).

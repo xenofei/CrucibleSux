@@ -33,22 +33,14 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 - CHANGELOG has an `[Unreleased]` section.
 - **AutoDuty source used:** commit 4a0dfdc (2026-10-09). The notes are in the PLAN status. The raw sources were in the session scratchpad and are gone after `/clear`; refetch them with `gh api repos/erdelf/AutoDuty/contents/<path>?ref=<sha> -H "Accept: application/vnd.github.raw"`.
 
+**Phase 2b, the Beastmaster journey (2026-10-11, committed on `phase-2-orchestrator`; not tested in game):**
+- **What it does:** the job quests, beast collection and levelling, each opt-in and off by default. It was built from game data and online sources only.
+- **Status and gaps:** see PLAN.md, the Phase 2b status block, for the file list and everything unverified.
+- **Research:** docs/research/06–10.
+- **Tests:** 112.
+
 ## Next
-1. **Opt-in quests, leveling and beast collection.** The owner directed full automation on 2026-10-11: all 13 job quests, the fastest leveling, and all 50 beasts. Everything is built from online sources and game data only, since the owner has no Beastmaster for live traces. Research is in docs/research/06–09 and the data in docs/data/bst-progression.md.
-   - **Done in Core (green, 92 tests):**
-     - `QuestScripts.cs`: native step scripts for all 13 quests. We chose this over Questionable, which loads extra paths only in debug mode and is AGPL.
-     - `BeastSources.cs`: all 50 beasts, with kin, wild BNpcName ids, spawn points (from Teamcraft and the wiki), gourds, prices and gates.
-     - `Progression.cs`: the planner. Quests come first, then beasts, then levels; a blocked quest falls through to the other options.
-   - **Next, the plugin layer:**
-     - IPC adapters for vnavmesh, Lifestream, RSR and BMR
-     - Navigator; Interactor and dialogue (waiting on research doc 10 for TextAdvance and the cutscene APIs)
-     - QuestRunner
-     - CaptureRunner: Capture at low HP, then the kill, checking status 4626
-     - FateRunner: measures EXP per hour and syncs level
-     - ShopRunner: ShopExchangeItem, verified at run time
-     - gourd use
-     - a ProgressionRunner with a watchdog
-     - three opt-in toggles (off by default), a UI tab and commands
+1. **Fresh-context review** of the Phase 2b plugin layer, `CrucibleSux/Automation/*` and the Journey tab. Use the hub-code-reviewer agent; the owner decides what to fix.
 2. **Release:** once the owner approves a push, bump `<Version>` to 0.2.0.0, rename `[Unreleased]` to `[0.2.0] - date`, and tag v0.2.0. Ask before pushing or tagging.
 3. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
    - Run tab preflight
@@ -57,6 +49,14 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
    - AutoDuty's settings are restored afterwards
 
    Then do the Phase 2 proof: First and Second Board, 3× each, unattended.
+
+   **Journey play-test**, attended, with `/xllog` open at Verbose:
+   - "Strangers in the Wood" from acceptance through the gear setup
+   - one capture (the squirrel in the Central Shroud)
+   - one FATE
+   - one gourd purchase
+
+   Capture the Battlehorn assignment callback (Bestiary context menu) so it can be automated.
 4. **Phase 3:** the native executor, so Crucible SUX makes the route, treasure and shop decisions itself. It also needs:
    - a way to set "Participate in rankings" (an addon callback, traced live)
    - Resume Progress recovery
@@ -73,4 +73,9 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - whether AutoDuty's IsStopped stays false while zoning
   - whether 6 minutes is enough to reach the board from far away
   - whether 4 minutes is the right "stuck" threshold
-- Unmapped: degree and clear history, the board-map agent, the capture API.
+- Unmapped:
+  - degree and clear history
+  - the board-map agent
+  - the capture API
+  - the Battlehorn assignment call
+- **Phase 2b, unverified:** everything in game. PLAN.md has the list.

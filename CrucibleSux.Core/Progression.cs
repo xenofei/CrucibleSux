@@ -146,19 +146,26 @@ public static class ProgressionPlanner
                 : new(ActivityKind.Blocked, $"{forWhat} needs Beastmaster level {need.Level}. Turn on levelling, or level by hand.");
         }
 
-        var missing = (need.Owned ?? []).Where(b => !s.Owned.Contains(b)).ToList();
+        // A beast that must be summoned must be owned first.
+        var missing = (need.Owned ?? []).Append(need.Summoned).Where(b => b != 0 && !s.Owned.Contains(b)).ToList();
         foreach (var kin in need.OwnedKin ?? [])
         {
             if (!BeastSources.All.Any(b => b.Kin == kin && s.Owned.Contains(b.Beast)))
                 missing.AddRange(BeastSources.All.Where(b => b.Kin == kin && b.CanCapture).Select(b => b.Beast));
         }
+        missing = missing.Distinct().ToList();
         if (missing.Count > 0)
         {
-            // A quest needs these particular beasts; capturing them is part of the quest, so it does not need the beasts option.
-            var reachable = missing.Where(b => BeastSources.ById(b).CanCapture && BeastSources.ById(b).MinLevel <= s.JobLevel).Distinct().ToList();
+            // A quest needs these particular beasts; getting them is part of the quest, so it does not need the beasts option.
+            if (missing.Select(BeastSources.ById).FirstOrDefault(b => b.Gourd != 0 && s.Count(b.Gourd) > 0) is { } held)
+                return new(ActivityKind.UseGourd, $"{forWhat} needs the {held.Name}.", Item: held.Gourd, Beasts: [held.Beast]);
+            var reachable = missing.Where(b => BeastSources.ById(b).CanCapture && BeastSources.ById(b).MinLevel <= s.JobLevel).ToList();
             if (reachable.Count > 0)
                 return new(ActivityKind.Capture, $"{forWhat} needs {Names(missing)}.", Beasts: reachable);
-            int level = missing.Select(b => BeastSources.ById(b).MinLevel).Min();
+            var capturable = missing.Where(b => BeastSources.ById(b).CanCapture).ToList();
+            if (capturable.Count == 0)
+                return new(ActivityKind.Blocked, $"{forWhat} needs {Names(missing)}, and its gourd is not in your inventory.");
+            int level = capturable.Select(b => BeastSources.ById(b).MinLevel).Min();
             return o.Leveling
                 ? new(ActivityKind.Level, $"{forWhat} needs {Names(missing)}, which can be captured from level {level}.", Level: level)
                 : new(ActivityKind.Blocked, $"{forWhat} needs {Names(missing)} (level {level}). Turn on levelling, or level by hand.");

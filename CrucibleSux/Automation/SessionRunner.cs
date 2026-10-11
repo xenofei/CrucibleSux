@@ -88,28 +88,36 @@ public sealed class SessionRunner : IDisposable
         this.Stop("Crucible SUX was unloaded.");
     }
 
-    /// <summary>The guard rails for the queue as it stands. AutoDuty is asked at most every 2 s unless <paramref name="fresh"/>.</summary>
-    public IReadOnlyList<ReadinessCheck> Checks(bool fresh = false)
+    /// <summary>
+    /// The guard rails for <paramref name="queue"/> (the saved queue when null). AutoDuty is asked at most every 2 s unless
+    /// <paramref name="fresh"/>.
+    /// </summary>
+    public IReadOnlyList<ReadinessCheck> Checks(bool fresh = false, IReadOnlyList<QueueEntry>? queue = null)
     {
+        queue ??= this.config.Queue;
         var now = DateTime.UtcNow;
         if (fresh || now >= this.nextProbe)
         {
             this.nextProbe = now + ProbeEvery;
-            this.executorProblem = this.autoDuty.Problem(this.config.Queue.Select(e => Boards.ByNumber(e.Board)).Distinct());
+            this.executorProblem = this.autoDuty.Problem(queue.Select(e => Boards.ByNumber(e.Board)).Distinct());
         }
         bool onBst = this.player.IsLoaded && this.player.ClassJob.RowId == CrucibleIds.BeastmasterJob;
         bool inDuty = this.condition[ConditionFlag.BoundByDuty] || Boards.ByTerritory(this.clientState.TerritoryType) is not null;
         return Preflight.Check(new PreflightInput(
-            this.session.Snapshot, onBst, inDuty, this.session.Dependencies, this.executorProblem, this.config.Queue, this.config.RankingsOptIn));
+            this.session.Snapshot, onBst, inDuty, this.session.Dependencies, this.executorProblem, queue, this.config.RankingsOptIn));
     }
 
-    /// <summary>Starts the queue when every guard rail allows it. Returns the checks either way.</summary>
-    public IReadOnlyList<ReadinessCheck> Start()
+    /// <summary>
+    /// Starts <paramref name="queue"/> (the saved queue when null; the journey passes a single board) when every guard rail
+    /// allows it. Returns the checks either way.
+    /// </summary>
+    public IReadOnlyList<ReadinessCheck> Start(IReadOnlyList<QueueEntry>? queue = null)
     {
         if (this.Current is not null)
             return [];
+        queue ??= this.config.Queue;
         this.session.Update(force: true);
-        var checks = this.Checks(fresh: true);
+        var checks = this.Checks(fresh: true, queue);
         if (!Preflight.CanStart(checks) || AutoDutyIpc.RotationPluginName(DependencyCatalog.RotationEngine(this.session.Dependencies)) is not { } rotation)
             return checks;
 
@@ -119,11 +127,11 @@ public sealed class SessionRunner : IDisposable
             MaxAttempts = Math.Clamp(this.config.MaxAttempts, 1, 5),
             StuckAfter = TimeSpan.FromMinutes(Math.Clamp(this.config.StuckMinutes, 2, 15)),
         };
-        this.Current = new Orchestrator(this.config.Queue, settings, DateTime.UtcNow);
+        this.Current = new Orchestrator(queue, settings, DateTime.UtcNow);
         this.character = this.player.ContentId;
         this.saved = 0;
         this.LastReport = null;
-        int runs = this.config.Queue.Sum(e => e.Runs);
+        int runs = queue.Sum(e => e.Runs);
         Plugin.Log.Information($"Session started: {runs} run(s), rotation {rotation}");
         this.chat.Print($"[Crucible SUX] Session started: {runs} run(s). \"/sux stop\" stops it.");
         return checks;

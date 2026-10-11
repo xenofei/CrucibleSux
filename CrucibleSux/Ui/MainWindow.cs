@@ -20,13 +20,14 @@ public sealed class MainWindow : Window
     private readonly BestiaryWatcher bestiary;
     private readonly Action save;
     private readonly SessionTabs sessionTabs;
+    private readonly JourneyTab journeyTab;
     private bool selectSettings;
     private bool missingOnly;
     private int teamBoard = 1;
     private (int Board, int Generation)? teamKey;
     private TeamPlan? team;
 
-    public MainWindow(Session session, CrucibleData data, Configuration config, BestiaryWatcher bestiary, SessionTabs sessionTabs, Action save)
+    public MainWindow(Session session, CrucibleData data, Configuration config, BestiaryWatcher bestiary, SessionTabs sessionTabs, JourneyTab journeyTab, Action save)
         : base("Crucible SUX###CrucibleSuxMain")
     {
         this.session = session;
@@ -34,6 +35,7 @@ public sealed class MainWindow : Window
         this.config = config;
         this.bestiary = bestiary;
         this.sessionTabs = sessionTabs;
+        this.journeyTab = journeyTab;
         this.save = save;
         this.SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(560, 380) };
     }
@@ -54,6 +56,7 @@ public sealed class MainWindow : Window
         Tab("One sitting", this.DrawSitting);
         Tab("Run", this.sessionTabs.DrawRun);
         Tab("History", this.sessionTabs.DrawHistory);
+        Tab("Journey", this.journeyTab.Draw);
         Tab("Beasts", this.DrawBeasts);
         Tab("Teams", this.DrawTeams);
         Tab("Plugins", this.DrawPlugins);
@@ -377,7 +380,8 @@ public sealed class MainWindow : Window
         ImGui.Spacing();
         ImGui.TextWrapped("Unattended automation is against the game's terms of service. Use it at your own risk.");
         ImGui.Spacing();
-        ImGui.TextDisabled("Commands: /sux opens this window; /sux check prints what this sitting can cover; /sux run starts the queue; /sux stop stops it.");
+        ImGui.TextDisabled("Commands: /sux opens this window; /sux check prints what this sitting can cover; /sux run starts the queue; " +
+                           "/sux journey starts the Beastmaster journey; /sux stop stops either.");
     }
 
     private static void Mark(bool? done)

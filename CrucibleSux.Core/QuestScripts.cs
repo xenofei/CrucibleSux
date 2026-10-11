@@ -13,7 +13,10 @@ public enum StepKind
     /// <summary>Interact with the event object at <see cref="QuestStep.At"/> (the "destination" markers).</summary>
     Interact,
 
-    /// <summary>Use the quest's event item <see cref="QuestStep.Arg"/> on the NPC at <see cref="QuestStep.At"/>.</summary>
+    /// <summary>
+    /// Hand event item <see cref="QuestStep.Arg"/> to the NPC at <see cref="QuestStep.At"/>: interact (the NPC's event takes it,
+    /// as in Questionable's path), and use the item on the NPC only if the sequence has not moved on.
+    /// </summary>
     UseEventItem,
 
     /// <summary>Perform emote <see cref="QuestStep.Arg"/> at the NPC at <see cref="QuestStep.At"/>.</summary>

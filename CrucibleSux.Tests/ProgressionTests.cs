@@ -83,6 +83,23 @@ public class ProgressionTests
             Next(State(owned: [], items: new() { [QuestScripts.CuSithGourd] = 1 }), new(false, true, false)));
 
     [Fact]
+    public void A_summon_step_uses_the_gourd_of_a_beast_not_yet_owned()
+    {
+        var s = State(done: Before(71027), accepted: (71027, 3), owned: [], items: new() { [QuestScripts.CuSithGourd] = 1 });
+
+        Assert.Equal((ActivityKind.UseGourd, QuestScripts.CuSithGourd), Next(s, new(true, false, false)));
+    }
+
+    [Fact]
+    public void A_summon_step_without_the_beast_or_its_gourd_is_blocked()
+    {
+        var a = ProgressionPlanner.Next(State(done: Before(71027), accepted: (71027, 3), owned: []), new(true, false, false));
+
+        Assert.Equal(ActivityKind.Blocked, a.Kind);
+        Assert.Contains("Cu Sith", a.Why);
+    }
+
+    [Fact]
     public void A_beast_count_step_captures_what_is_in_reach()
     {
         var a = ProgressionPlanner.Next(State(done: Before(71027), accepted: (71027, 255)), All);
@@ -247,4 +264,21 @@ public class BeastSourceTests
     [Fact]
     public void Every_quest_ends_with_a_turn_in() =>
         Assert.All(QuestScripts.All, q => Assert.Contains(q.Steps, s => s.Sequence == 255));
+
+    [Fact]
+    public void Every_sold_gourd_is_in_the_shop_for_its_currency_and_quest() =>
+        Assert.All(BeastSources.All.Where(b => b.IsSold), b =>
+            Assert.Contains(new ShopLine(b.Gourd, b.GourdQuest), KornagoShop.For(b.Currency).Lines));
+
+    [Fact]
+    public void Shop_positions_skip_lines_the_window_hides()
+    {
+        bool Upto34(uint q) => q is CrucibleIds.Quests.IntoTheCrucible or CrucibleIds.Quests.ABeastmastersPath;
+
+        Assert.Equal(4, KornagoShop.Position(KornagoShop.Faded, 49810, Upto34));
+        Assert.Equal(-1, KornagoShop.Position(KornagoShop.Faded, 49811, Upto34));
+        Assert.Equal(7, KornagoShop.Position(KornagoShop.Faded, CrucibleIds.BrightRemnant, Upto34));
+        Assert.Equal(11, KornagoShop.Position(KornagoShop.Faded, CrucibleIds.BrightRemnant, _ => true));
+        Assert.Equal(-1, KornagoShop.Position(KornagoShop.Faded, CrucibleIds.BrightRemnant, _ => false));
+    }
 }

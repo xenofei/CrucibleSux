@@ -12,10 +12,24 @@
   - If anything goes wrong inside a board, it ends the session and leaves the decision to you.
 - Return report in chat and as a notification: runs, outcomes, first clears, why the session ended and what is next.
 - History tab: every run per character, with its outcome, duration and detail.
+- **Journey tab** (`/sux journey`): three opt-in parts, each off by default.
+  - **Job quests:** all 13 Beastmaster quests, scripted from the game's quest data. This includes the first-time job and gear setup, and the captures, levels and boards each quest needs.
+  - **Beasts:**
+    - wild captures: weaken the beast with auto-attacks, use Capture, then kill it
+    - gourds you hold
+    - Kornago shop purchases, with the exchange checked against the item name before confirming
+    - remnant farming on the highest cleared board
+  - **Levelling:**
+    - FATEs ranked by expected EXP per second, with level sync
+    - zones chosen per level band, switching when another has measured faster
+  - **Safeguards:**
+    - It reads its progress back from the game.
+    - It stops after 15 minutes without progress or after 3 problems in a row.
+    - It waits for you, and tells you, when only you can act (putting a beast on a Battlehorn, or a window it does not expect).
 
 ### Changed
 
-- The release is no longer read-only. The session queue has not been tested in game yet, so stay nearby for the first runs.
+- The release is no longer read-only. Neither the session queue nor the journey has been tested in game yet, so stay nearby for the first runs.
 
 ## [0.1.0] - 2026-10-11
 
