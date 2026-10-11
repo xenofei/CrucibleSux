@@ -306,7 +306,7 @@ public sealed class MainWindow : Window
 
     private void DrawPlugins()
     {
-        ImGui.TextWrapped("A session drives AutoDuty, which walks to Lauda, sets up the team, moves across the board and switches the rotation plugin and BossMod's AI on for each board.");
+        ImGui.TextWrapped("A session drives AutoDuty, which walks to Lauda, sets up the team, moves across the board and switches the rotation plugin and BossMod Reborn's AI on for each board. The original BossMod must be disabled.");
         foreach (var role in this.session.Dependencies)
         {
             ImGui.Spacing();

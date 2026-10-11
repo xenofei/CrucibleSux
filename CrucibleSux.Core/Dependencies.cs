@@ -22,8 +22,8 @@ public enum DependencyRole
 }
 
 /// <param name="RepoHint">A substring of the plugin's repo URL that marks the build with the features needed (e.g. a fork).</param>
-/// <param name="Caveat">A known weakness in the Crucible; a loaded plugin with one is a warning, not a pass.</param>
-public sealed record DependencyInfo(string InternalName, string DisplayName, DependencyRole Role, string Purpose, string RepoUrl, string? RepoHint = null, string? Caveat = null);
+/// <param name="Conflict">Why this plugin must be disabled for the role: loaded, it fails the role even beside a good candidate.</param>
+public sealed record DependencyInfo(string InternalName, string DisplayName, DependencyRole Role, string Purpose, string RepoUrl, string? RepoHint = null, string? Conflict = null);
 
 /// <summary>A plugin as Dalamud reports it.</summary>
 public sealed record InstalledPlugin(string InternalName, Version Version, bool IsLoaded, string? RepoUrl);
@@ -41,9 +41,9 @@ public static class DependencyCatalog
         new("BossModReborn", "BossMod Reborn", DependencyRole.Rotation, "Beastmaster rotation module (work in progress)", "https://github.com/FFXIV-CombatReborn/BossmodReborn"),
         new("WrathCombo", "Wrath Combo", DependencyRole.Rotation, "Rotation (no Beastmaster support seen yet)", "https://github.com/PunishXIV/WrathCombo"),
         new("BossModReborn", "BossMod Reborn", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/FFXIV-CombatReborn/BossmodReborn"),
-        new("BossMod", "BossMod", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/awgil/ffxiv_bossmod",
-            Caveat: "BossMod does not put the First Board's dangerous adds first (the Pas de Seul mage, the Ogre's wisps); BossMod Reborn does. " +
-                    "Crucible SUX's own target priority covers it when it is on"),
+        new("BossMod", "BossMod (original)", DependencyRole.Mechanics, "Not used: Crucible SUX needs BossMod Reborn", "https://github.com/awgil/ffxiv_bossmod",
+            Conflict: "It blocks movement while you cast, so the character cannot dodge, and it does not put the First Board's " +
+                      "dangerous adds first. Disable it and use BossMod Reborn"),
         new("AutoDuty", "AutoDuty (erdelf)", DependencyRole.BoardDriver, "Lauda's menus, team setup, board movement", "https://github.com/erdelf/AutoDuty", "erdelf"),
         new("Lifestream", "Lifestream", DependencyRole.Travel, "Teleports", "https://github.com/NightmareXIV/Lifestream"),
         new("TextAdvance", "TextAdvance", DependencyRole.Dialogs, "Advancing NPC text", "https://github.com/NightmareXIV/TextAdvance"),
@@ -63,11 +63,17 @@ public static class DependencyCatalog
             var candidates = All.Where(d => d.Role == role)
                 .Select(d => Status(d, byName.GetValueOrDefault(d.InternalName)))
                 .ToList();
-            var loaded = candidates.Where(c => c.Status is CheckStatus.Pass or CheckStatus.Warn).ToList();
+            var loaded = candidates.Where(c => c.Info.Conflict is null && c.Status is CheckStatus.Pass or CheckStatus.Warn).ToList();
+            var conflicts = candidates.Where(c => c.Info.Conflict is not null && c.Status == CheckStatus.Fail).ToList();
 
             CheckStatus status;
             string detail;
-            if (loaded.Count == 0)
+            if (conflicts.Count > 0)
+            {
+                status = CheckStatus.Fail;
+                detail = string.Join("; ", conflicts.Select(c => c.Detail));
+            }
+            else if (loaded.Count == 0)
             {
                 status = required ? CheckStatus.Fail : CheckStatus.Warn;
                 detail = required ? "None loaded: install and enable one of these." : "Optional, none loaded.";
@@ -76,12 +82,6 @@ public static class DependencyCatalog
             {
                 status = CheckStatus.Warn;
                 detail = string.Join("; ", loaded.Where(c => c.Status == CheckStatus.Warn).Select(c => c.Detail));
-            }
-            else if (role == DependencyRole.Mechanics && loaded.Count > 1)
-            {
-                // BossMod and BossMod Reborn both hook the same encounters; only one should be enabled.
-                status = CheckStatus.Warn;
-                detail = $"{string.Join(" and ", loaded.Select(c => c.Info.DisplayName))} are both loaded; enable only one.";
             }
             else if (role == DependencyRole.Rotation)
             {
@@ -106,14 +106,18 @@ public static class DependencyCatalog
 
     private static DependencyStatus Status(DependencyInfo info, InstalledPlugin? p)
     {
+        if (info.Conflict is not null)
+        {
+            return p is { IsLoaded: true }
+                ? new(info, p, CheckStatus.Fail, $"{info.DisplayName} is loaded ({p.Version}). {info.Conflict}.")
+                : new(info, p, CheckStatus.Pass, p is null ? "Not installed (good)" : "Installed but disabled (good)");
+        }
         if (p is null)
             return new(info, null, CheckStatus.Fail, "Not installed");
         if (!p.IsLoaded)
             return new(info, p, CheckStatus.Unknown, $"Installed ({p.Version}) but disabled");
         if (info.RepoHint is not null && p.RepoUrl?.Contains(info.RepoHint, StringComparison.OrdinalIgnoreCase) != true)
             return new(info, p, CheckStatus.Warn, $"{info.DisplayName}: this build ({p.RepoUrl ?? "unknown repo"}) may lack Crucible support; the {info.RepoHint} build has it");
-        if (info.Caveat is not null)
-            return new(info, p, CheckStatus.Warn, $"Loaded ({p.Version}). {info.Caveat}");
         return new(info, p, CheckStatus.Pass, $"Loaded ({p.Version})");
     }
 }

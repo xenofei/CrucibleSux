@@ -24,13 +24,23 @@ public class DependencyTests
     }
 
     [Fact]
-    public void The_original_BossMod_works_but_warns_about_the_first_boards_adds()
+    public void The_original_BossMod_does_not_cover_mechanics()
     {
         var s = DependencyCatalog.Evaluate(FullSet.Select(p => p.InternalName == "BossModReborn" ? p with { InternalName = "BossMod" } : p));
 
         var mechanics = Role(s, DependencyRole.Mechanics);
-        Assert.Equal(CheckStatus.Warn, mechanics.Status);
-        Assert.Contains("BossMod Reborn does", mechanics.Detail);
+        Assert.Equal(CheckStatus.Fail, mechanics.Status);
+        Assert.Contains("Disable it and use BossMod Reborn", mechanics.Detail);
+    }
+
+    [Fact]
+    public void The_original_BossMod_installed_but_disabled_is_fine()
+    {
+        var s = DependencyCatalog.Evaluate(FullSet.Append(P("BossMod", loaded: false)));
+
+        var mechanics = Role(s, DependencyRole.Mechanics);
+        Assert.Equal(CheckStatus.Pass, mechanics.Status);
+        Assert.Equal("BossMod Reborn", mechanics.Detail);
     }
 
     [Fact]
@@ -60,11 +70,13 @@ public class DependencyTests
     }
 
     [Fact]
-    public void Both_BossMods_loaded_warns()
+    public void The_original_BossMod_loaded_beside_Reborn_fails()
     {
         var s = DependencyCatalog.Evaluate(FullSet.Append(P("BossMod")));
 
-        Assert.Equal(CheckStatus.Warn, Role(s, DependencyRole.Mechanics).Status);
+        var mechanics = Role(s, DependencyRole.Mechanics);
+        Assert.Equal(CheckStatus.Fail, mechanics.Status);
+        Assert.Contains("blocks movement while you cast", mechanics.Detail);
     }
 
     [Fact]

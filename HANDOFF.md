@@ -72,6 +72,8 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - whether RSR or BossMod fight the picker's retargets
   - AutoDuty accepting `Meta.Crucible.TeamMode` and `RecommendedTeamCap` (names read from 4a0dfdc)
 
+**After 0.2.1 (branch `bossmod-reborn-only`, not pushed):** at the tester's request, only BossMod Reborn counts for mechanics. If the original BossMod is loaded, the Mechanics role fails and the session is blocked, because it blocks movement while casting. Installed but disabled passes. `DependencyInfo.Caveat` was replaced by `Conflict`. Tests: 152.
+
 ## Next
 0. **v0.2.1 is out** (owner approved "bump and push"): tag v0.2.1 on 6bfb12f; CI and Release passed; latest.zip and SHA256SUMS.txt are attached; pluginmaster.json for v0.2.1 is on main (1b48089). Next: ask Maple to replay the First Board and send `/sux report` (and the full log if a hit or KO shows). Any later push or release needs fresh approval.
 1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:

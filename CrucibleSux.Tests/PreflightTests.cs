@@ -55,6 +55,14 @@ public class PreflightTests
     }
 
     [Fact]
+    public void The_original_BossMod_loaded_blocks_the_session()
+    {
+        var checks = Preflight.Check(Input(plugins: Plugins.Append(P("BossMod"))));
+
+        Assert.False(Preflight.CanStart(checks));
+    }
+
+    [Fact]
     public void BossMod_Reborn_alone_can_fight()
     {
         var checks = Preflight.Check(Input(plugins: Plugins.Where(p => p.InternalName != "RotationSolver")));
