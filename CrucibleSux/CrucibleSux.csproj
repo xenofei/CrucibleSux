@@ -4,10 +4,10 @@
     <Version>0.1.0.0</Version>
     <Author>Michiru Tsukikage</Author>
     <Name>Crucible SUX</Name>
-    <Punchline>Set-and-forget Unbroken eXecutor: Crucible of the Unbroken progress, readiness and team planning.</Punchline>
+    <Punchline>Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.</Punchline>
     <Description>Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.
-It checks whether you can clear the remaining boards in one sitting, suggests a team per board, and checks the companion plugins the later automation will drive.
-This release is read-only: it automates nothing yet.</Description>
+It checks whether you can clear the remaining boards in one sitting and suggests a team per board.
+Its session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Unattended automation is against the game's terms of service: use it at your own risk.</Description>
     <RepoUrl>https://github.com/xenofei/CrucibleSux</RepoUrl>
     <IconUrl>https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png</IconUrl>
     <Tags>beastmaster;crucible;tracker;planner</Tags>

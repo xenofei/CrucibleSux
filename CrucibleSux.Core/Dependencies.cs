@@ -96,6 +96,11 @@ public static class DependencyCatalog
         return result;
     }
 
+    /// <summary>The rotation plugin a run hands combat to: the first loaded one in catalog order, or null.</summary>
+    public static DependencyInfo? RotationEngine(IEnumerable<RoleStatus> roles) =>
+        roles.FirstOrDefault(r => r.Role == DependencyRole.Rotation)?.Candidates
+            .FirstOrDefault(c => c.Status is CheckStatus.Pass or CheckStatus.Warn)?.Info;
+
     private static DependencyStatus Status(DependencyInfo info, InstalledPlugin? p)
     {
         if (p is null)

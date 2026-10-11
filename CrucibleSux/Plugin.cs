@@ -1,7 +1,9 @@
 using System;
 using System.Linq;
+using CrucibleSux.Automation;
 using CrucibleSux.Core;
 using CrucibleSux.Game;
+using CrucibleSux.Integrations;
 using CrucibleSux.Ui;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
@@ -12,8 +14,8 @@ using Dalamud.Plugin.Services;
 namespace CrucibleSux;
 
 /// <summary>
-/// Crucible SUX, the Set-and-forget Unbroken eXecutor. This release is the read-only part: progress, readiness, team
-/// suggestions and the companion-plugin check (docs/PLAN.md, phases 0-1). It sends no input to the game.
+/// Crucible SUX, the Set-and-forget Unbroken eXecutor: progress, readiness, team suggestions and the companion-plugin
+/// check (docs/PLAN.md phases 0-1), plus the session queue that runs boards through AutoDuty (phase 2).
 /// </summary>
 public sealed class Plugin : IDalamudPlugin
 {
@@ -29,12 +31,18 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IPlayerState PlayerState { get; private set; } = null!;
     [PluginService] internal static IUnlockState UnlockState { get; private set; } = null!;
     [PluginService] internal static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
+    [PluginService] internal static IClientState ClientState { get; private set; } = null!;
+    [PluginService] internal static ICondition Condition { get; private set; } = null!;
+    [PluginService] internal static IObjectTable ObjectTable { get; private set; } = null!;
+    [PluginService] internal static IGameGui GameGui { get; private set; } = null!;
+    [PluginService] internal static INotificationManager NotificationManager { get; private set; } = null!;
 
     private readonly Configuration config;
     private readonly WindowSystem windowSystem = new("CrucibleSux");
     private readonly MainWindow mainWindow;
     private readonly BestiaryWatcher bestiary;
     private readonly Session session;
+    private readonly SessionRunner runner;
 
     public Plugin()
     {
@@ -42,10 +50,16 @@ public sealed class Plugin : IDalamudPlugin
         var data = new CrucibleData(DataManager);
         this.session = new Session(new CharacterReader(PlayerState, UnlockState, DataManager, this.config), new PluginInventory(PluginInterface, Log), Log);
         this.bestiary = new BestiaryWatcher(AddonLifecycle, PlayerState, Log, this.config, this.Save, data.Beasts);
-        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, this.Save);
+        this.runner = new SessionRunner(this.session, new AutoDutyIpc(PluginInterface, Log), this.config, this.Save,
+            ClientState, Condition, ObjectTable, GameGui, PlayerState, ChatGui, NotificationManager);
+        var sessionTabs = new SessionTabs(this.runner, this.session, this.config, PlayerState, this.Save);
+        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs, this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
 
-        var help = new CommandInfo(this.OnCommand) { HelpMessage = "Open Crucible SUX. \"/sux check\" prints what you can clear in one sitting." };
+        var help = new CommandInfo(this.OnCommand)
+        {
+            HelpMessage = "Open Crucible SUX. \"/sux check\" prints what you can clear in one sitting; \"/sux run\" starts the queue; \"/sux stop\" stops it.",
+        };
         CommandManager.AddHandler(Command, help);
         CommandManager.AddHandler(LongCommand, new CommandInfo(this.OnCommand) { HelpMessage = "Same as /sux.", ShowInHelp = false });
 
@@ -64,21 +78,56 @@ public sealed class Plugin : IDalamudPlugin
         CommandManager.RemoveHandler(LongCommand);
         CommandManager.RemoveHandler(Command);
         this.windowSystem.RemoveAllWindows();
+        this.runner.Dispose();
         this.bestiary.Dispose();
     }
 
     private void Save() => PluginInterface.SavePluginConfig(this.config);
 
-    private void OnUpdate(IFramework framework) => this.session.Update();
+    private void OnUpdate(IFramework framework)
+    {
+        this.session.Update();
+        this.runner.Update();
+    }
 
     private void OnCommand(string command, string args)
     {
-        if (!args.Trim().Equals("check", StringComparison.OrdinalIgnoreCase))
+        switch (args.Trim().ToLowerInvariant())
         {
-            this.mainWindow.Toggle();
+            case "check":
+                this.PrintSitting();
+                break;
+            case "run":
+                this.StartSession();
+                break;
+            case "stop":
+                if (this.runner.Current is null)
+                    ChatGui.Print("[Crucible SUX] No session is running.");
+                this.runner.Stop("Stopped with /sux stop.");
+                break;
+            default:
+                this.mainWindow.Toggle();
+                break;
+        }
+    }
+
+    private void StartSession()
+    {
+        if (this.runner.Current is not null)
+        {
+            ChatGui.Print("[Crucible SUX] A session is already running.");
             return;
         }
+        var checks = this.runner.Start();
+        if (this.runner.Current is not null)
+            return;
+        ChatGui.PrintError("[Crucible SUX] The session cannot start:");
+        foreach (var check in checks.Where(c => c.Status == CheckStatus.Fail))
+            ChatGui.PrintError($"[Crucible SUX] {check.Label}: {check.Detail}");
+    }
 
+    private void PrintSitting()
+    {
         this.session.Update(force: true);
         if (this.session.Plan is not { } plan)
         {

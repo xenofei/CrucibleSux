@@ -19,19 +19,21 @@ public sealed class MainWindow : Window
     private readonly Configuration config;
     private readonly BestiaryWatcher bestiary;
     private readonly Action save;
+    private readonly SessionTabs sessionTabs;
     private bool selectSettings;
     private bool missingOnly;
     private int teamBoard = 1;
     private (int Board, int Generation)? teamKey;
     private TeamPlan? team;
 
-    public MainWindow(Session session, CrucibleData data, Configuration config, BestiaryWatcher bestiary, Action save)
+    public MainWindow(Session session, CrucibleData data, Configuration config, BestiaryWatcher bestiary, SessionTabs sessionTabs, Action save)
         : base("Crucible SUX###CrucibleSuxMain")
     {
         this.session = session;
         this.data = data;
         this.config = config;
         this.bestiary = bestiary;
+        this.sessionTabs = sessionTabs;
         this.save = save;
         this.SizeConstraints = new WindowSizeConstraints { MinimumSize = new Vector2(560, 380) };
     }
@@ -50,6 +52,8 @@ public sealed class MainWindow : Window
 
         Tab("Overview", this.DrawOverview);
         Tab("One sitting", this.DrawSitting);
+        Tab("Run", this.sessionTabs.DrawRun);
+        Tab("History", this.sessionTabs.DrawHistory);
         Tab("Beasts", this.DrawBeasts);
         Tab("Teams", this.DrawTeams);
         Tab("Plugins", this.DrawPlugins);
@@ -168,17 +172,21 @@ public sealed class MainWindow : Window
             if (!open)
                 continue;
             foreach (var check in r.Checks)
-            {
-                ImGui.TextColored(StatusColor(check.Status), $"  {StatusWord(check.Status),-7}");
-                ImGui.SameLine();
-                ImGui.TextUnformatted($"{check.Label}: {check.Detail}");
-                if (check.Hint is not null && check.Status != CheckStatus.Pass)
-                {
-                    ImGui.Indent();
-                    ImGui.TextDisabled(check.Hint);
-                    ImGui.Unindent();
-                }
-            }
+                DrawCheck(check);
+        }
+    }
+
+    /// <summary>One check as a coloured status word, its label and detail, and the hint when it is not a pass.</summary>
+    internal static void DrawCheck(ReadinessCheck check)
+    {
+        ImGui.TextColored(StatusColor(check.Status), $"  {StatusWord(check.Status),-7}");
+        ImGui.SameLine();
+        ImGui.TextUnformatted($"{check.Label}: {check.Detail}");
+        if (check.Hint is not null && check.Status != CheckStatus.Pass)
+        {
+            ImGui.Indent();
+            ImGui.TextDisabled(check.Hint);
+            ImGui.Unindent();
         }
     }
 
@@ -292,7 +300,7 @@ public sealed class MainWindow : Window
 
     private void DrawPlugins()
     {
-        ImGui.TextWrapped("The automation in later releases drives these plugins. This release only checks them.");
+        ImGui.TextWrapped("A session drives AutoDuty, which walks to Lauda, sets up the team, moves across the board and switches the rotation plugin and BossMod's AI on for each board.");
         foreach (var role in this.session.Dependencies)
         {
             ImGui.Spacing();
@@ -314,8 +322,27 @@ public sealed class MainWindow : Window
 
     private void DrawSettings()
     {
+        ImGui.TextUnformatted("Sessions");
+        int attempts = this.config.MaxAttempts;
+        ImGui.SetNextItemWidth(160f);
+        if (ImGui.SliderInt("Tries per run", ref attempts, 1, 5))
+        {
+            this.config.MaxAttempts = attempts;
+            this.save();
+        }
+        ImGui.TextDisabled("A run that fails outside the board is retried; inside a board, the session always stops.");
+        int stuck = this.config.StuckMinutes;
+        ImGui.SetNextItemWidth(160f);
+        if (ImGui.SliderInt("Stuck after (minutes)", ref stuck, 2, 15))
+        {
+            this.config.StuckMinutes = stuck;
+            this.save();
+        }
+        ImGui.TextDisabled("Inside a board, a run with no movement, combat, HP or window change for this long is stopped.");
+
+        ImGui.Spacing();
         ImGui.TextUnformatted("Rankings");
-        ImGui.TextDisabled("Automated runs leave \"Participate in rankings\" unticked unless you opt a board in here.");
+        ImGui.TextDisabled("Automated runs should stay out of the rankings unless you opt a board in here. Crucible SUX cannot untick the option yet, so the Run tab warns when it matters.");
         foreach (var b in Boards.All)
         {
             bool on = this.config.RankingsOptIn.Contains(b.Number);
@@ -345,12 +372,12 @@ public sealed class MainWindow : Window
     {
         ImGui.TextUnformatted("Crucible SUX: Set-and-forget Unbroken eXecutor");
         ImGui.Spacing();
-        ImGui.TextWrapped("This release reads your progress and plans your sitting; it sends no input to the game. " +
-                          "Later releases will run the boards through AutoDuty, vnavmesh, a rotation plugin and BossMod Reborn (docs/PLAN.md).");
+        ImGui.TextWrapped("Reads your progress, plans your sitting, and runs a queue of boards through AutoDuty, vnavmesh, a rotation plugin and BossMod Reborn. " +
+                          "It watches every run, stops one that is stuck and reports what happened (docs/PLAN.md).");
         ImGui.Spacing();
         ImGui.TextWrapped("Unattended automation is against the game's terms of service. Use it at your own risk.");
         ImGui.Spacing();
-        ImGui.TextDisabled("Commands: /sux opens this window; /sux check prints what this sitting can cover.");
+        ImGui.TextDisabled("Commands: /sux opens this window; /sux check prints what this sitting can cover; /sux run starts the queue; /sux stop stops it.");
     }
 
     private static void Mark(bool? done)

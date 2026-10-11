@@ -98,6 +98,25 @@ Each feature names the player gripe it answers (from 02-player-gripes.md).
 - Phase 1 ships F1, F2, F3 (labelled experimental) and the dependency checker.
 - F11 (run history) moves to Phase 2: nothing records runs until the orchestrator does.
 - `pluginmaster.json` is written by the first tagged release.
+- v0.1.0 was released on 2026-10-11, and the dashboard was seen in game on a character without Beastmaster.
+
+**Status of Phase 2 (2026-10-11): built, not yet tested in game.**
+
+- **Session queue and orchestrator** (F5, F9): `CrucibleSux.Core/Orchestrator.cs`.
+- **Guard rails** (F12): `Preflight.cs`.
+- **Run history and report** (F10, F11): `RunHistory.cs`.
+- **AutoDuty adapter:** `CrucibleSux/Integrations/AutoDutyIpc.cs`, which uses IPC only. Each run does the following:
+  - It pushes temporary overrides: Crucible duty mode, Standard degree, auto-exit, and the rotation plugin (RSR, else BossMod Reborn).
+  - It calls `Run(territory, 1, bareMode: true)`. Bare mode skips AutoDuty's loop actions, such as logout or killing the client.
+  - The adapter's version gate: `ContentHasPath` must answer for every board, and AutoDuty validates every override key.
+- **Combat controller:** AutoDuty already switches the chosen rotation plugin and BossMod's AI on when a board starts and off when it stops. The controller is therefore the choice of engine plus that override. Battlehorn and item handling stay with AutoDuty until Phase 3.
+- **Not done yet:**
+  - "Participate in rankings" cannot be set. AutoDuty does not touch it, so preflight warns instead.
+  - Recovery through Resume Progress is not built. Anything that goes wrong inside a board stops the session.
+- **Unverified until a play-test:**
+  - whether `XBMResult` appears after a lost board
+  - whether AutoDuty's `IsStopped` stays false through zoning
+  - the 4-minute stuck default
 
 **Unverifiable without the game:** in-game behaviour, the addon callback indexes, the capture flow, and boss timing. Phases 2–5 need sessions with the game running. I can launch and drive it per your global rules, or you play-test.
 

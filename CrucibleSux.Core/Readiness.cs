@@ -65,7 +65,8 @@ public static class ReadinessEvaluator
         return new SittingPlan(result, stop);
     }
 
-    private static BoardReadiness Evaluate(BoardInfo board, CharacterSnapshot c, IReadOnlySet<int> cleared)
+    /// <summary>Judges a board as if <paramref name="cleared"/> were the cleared boards.</summary>
+    public static BoardReadiness Evaluate(BoardInfo board, CharacterSnapshot c, IReadOnlySet<int> cleared)
     {
         var checks = new List<ReadinessCheck>
         {

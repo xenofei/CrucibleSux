@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Session queue (Run tab, `/sux run`, `/sux stop`): queue boards, each run once or more, or fill the queue with what this sitting can cover. AutoDuty plays each board, and your rotation plugin and BossMod Reborn's AI fight.
+- Guard rails before a session starts: the job, the companion plugins, a rotation plugin that can play Beastmaster, AutoDuty being idle and able to run each board, each board's readiness in queue order, and a rankings warning.
+- Watchdog:
+  - It stops a run that never reaches its board, or that shows no change inside a board for a set time (4 minutes by default).
+  - It retries a run that failed outside the board, up to a set number of tries.
+  - If anything goes wrong inside a board, it ends the session and leaves the decision to you.
+- Return report in chat and as a notification: runs, outcomes, first clears, why the session ended and what is next.
+- History tab: every run per character, with its outcome, duration and detail.
+
+### Changed
+
+- The release is no longer read-only. The session queue has not been tested in game yet, so stay nearby for the first runs.
+
 ## [0.1.0] - 2026-10-11
 
 ### Added
