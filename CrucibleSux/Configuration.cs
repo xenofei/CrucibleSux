@@ -54,6 +54,15 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>Record casts, hits, movement and windows while in a board or while a run is going, for bug reports.</summary>
     public bool RecordCombat { get; set; } = true;
 
+    /// <summary>Turn the original BossMod off for a session or the journey without asking first.</summary>
+    public bool TurnOffBossMod { get; set; }
+
+    /// <summary>
+    /// The game process in which Crucible SUX turned the original BossMod off and has not turned it back on yet, or 0. It
+    /// survives a plugin reload; after a game restart Dalamud has already undone the temporary switch, so it is ignored.
+    /// </summary>
+    public int BossModTurnedOffInProcess { get; set; }
+
     public RunOptions BoardRunOptions() => new(this.RunTeamOfThree, this.RunShop, this.RunGoal);
 }
 

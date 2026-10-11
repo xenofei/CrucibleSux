@@ -24,6 +24,12 @@ public sealed class Session(CharacterReader reader, PluginInventory plugins, IPl
     public SittingPlan? Plan { get; private set; }
     public IReadOnlyList<RoleStatus> Dependencies { get; private set; } = [];
 
+    /// <summary>Loaded plugins that must be off for a run (the original BossMod).</summary>
+    public IReadOnlyList<DependencyInfo> Conflicts { get; private set; } = [];
+
+    /// <summary><see cref="Dependencies"/> as they will be once <see cref="Conflicts"/> are turned off.</summary>
+    public IReadOnlyList<RoleStatus> DependenciesWithConflictsOff { get; private set; } = [];
+
     /// <summary>Bumped whenever <see cref="Snapshot"/> changes, so views can cache what they derive from it.</summary>
     public int Generation { get; private set; }
 
@@ -33,7 +39,12 @@ public sealed class Session(CharacterReader reader, PluginInventory plugins, IPl
         if (force || now >= this.nextPlugins)
         {
             this.nextPlugins = now + PluginsEvery;
-            this.Dependencies = DependencyCatalog.Evaluate(plugins.Read());
+            var installed = plugins.Read();
+            this.Dependencies = DependencyCatalog.Evaluate(installed);
+            this.Conflicts = DependencyCatalog.LoadedConflicts(this.Dependencies);
+            this.DependenciesWithConflictsOff = this.Conflicts.Count == 0
+                ? this.Dependencies
+                : DependencyCatalog.Evaluate(DependencyCatalog.WithConflictsOff(installed));
         }
 
         if (!force && now < this.nextSnapshot)

@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **The original BossMod is turned off for a run:** when a session or the journey starts while it is enabled, Crucible SUX asks to turn it off and turns it back on when the run ends.
+  - It uses Dalamud's temporary switch (`/xldisableplugintemp`), so your plugin settings never change, and restarting the game turns it back on as well.
+  - "Do this without asking next time" in the question, or the setting under Settings › Sessions, skips the question.
+  - Both BossMods answer AutoDuty under the same names. When the original unloads, those names go silent, so BossMod Reborn is reloaded once to answer again.
+  - Dalamud can switch a plugin only when it is in exactly one collection. If it is in more than one, the run does not start, and the chat explains why.
+- The journey now checks for the original BossMod too: it blocks movement while you cast in FATEs as well.
+
 ## [0.2.2] - 2026-10-11
 
 ### Changed

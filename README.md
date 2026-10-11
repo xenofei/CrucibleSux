@@ -30,7 +30,7 @@ Queue the boards, step away, and come back to a report.
 - **Plugins:** checks the companion plugins:
   - vnavmesh
   - Rotation Solver Reborn or BossMod Reborn
-  - BossMod Reborn's AI (the original BossMod must be disabled: it blocks movement while you cast)
+  - BossMod Reborn's AI. The original BossMod must be off during a run, because it blocks movement while you cast. When a session or the journey starts, Crucible SUX offers to turn it off for the run and back on afterwards. Your plugin settings stay as they are.
   - AutoDuty (erdelf's build)
   - Lifestream
   - TextAdvance

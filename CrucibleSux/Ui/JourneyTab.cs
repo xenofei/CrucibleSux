@@ -8,7 +8,8 @@ using Dalamud.Interface.Utility.Raii;
 namespace CrucibleSux.Ui;
 
 /// <summary>The Journey tab: the three opt-in parts of the Beastmaster journey, start and stop, and what it is doing.</summary>
-public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save)
+/// <param name="start">Starts the journey, turning the original BossMod off first when needed.</param>
+public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save, Action start)
 {
     private static readonly TimeSpan PreviewEvery = TimeSpan.FromSeconds(1);
     private DateTime nextPreview;
@@ -60,14 +61,16 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
             ImGui.TextColored(color, $"Next: {next.Why}");
         }
 
-        var problems = journey.Checks();
+        var problems = journey.Checks(beforeSwitch: true);
         foreach (var problem in problems)
             ImGui.TextColored(ImGuiColors.DalamudRed, problem);
+        if (journey.Checks().Count > problems.Count)
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "The original BossMod is loaded: it is turned off when the journey starts and back on when it ends.");
         ImGui.Spacing();
         using (ImRaii.Disabled(problems.Count > 0))
         {
             if (ImGui.Button("Start journey"))
-                journey.Start();
+                start();
         }
         ImGui.SameLine();
         ImGui.TextDisabled("Unattended automation is against the game's terms of service.");

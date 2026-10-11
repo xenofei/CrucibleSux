@@ -74,6 +74,29 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 
 **v0.2.2 (2026-10-11, owner approved "Release it"):** at the tester's request, only BossMod Reborn counts for mechanics. If the original BossMod is loaded, the Mechanics role fails and the session is blocked, because it blocks movement while casting. Installed but disabled passes. `DependencyInfo.Caveat` was replaced by `Conflict`. Tests: 152.
 
+**Turning the original BossMod off for a run (2026-10-11, on main, unreleased; not tested in game):**
+- **Owner's request:** turn BossMod off while the automation runs, back on afterwards, with a prompt first.
+- **Core:** `BossModSwitch.cs` is the state machine.
+  - It sends `/xldisableplugintemp BossMod`, then waits up to 30 s for BossMod to unload.
+  - It reloads BossMod Reborn when the shared IPC is gone.
+  - `Restore` turns back on only what is still off.
+- **Plugin:**
+  - `Automation/BossModGate.cs` handles the consent, sends the commands through `ICommandManager.ProcessCommand`, and turns BossMod back on at the first tick with nothing running, and on unload.
+  - `Ui/BossModPrompt.cs` is the question window.
+  - Settings › Sessions has "Turn the original BossMod off for runs without asking" (`TurnOffBossMod`).
+  - `BossModTurnedOffInProcess` keeps the restore across a plugin reload in the same game process.
+- **Checks:** the Run tab and Journey tab judge the plugins as they will be once BossMod is off (`beforeSwitch`), and the Run tab shows a Warn row, `turn-off`. `SessionRunner.Start` and `ProgressionRunner.Start` still judge them as they are.
+- **Why BossMod Reborn is reloaded:**
+  - Both forks register the same `BossMod.*` IPC names.
+  - Dalamud's `UnregisterFunc` clears a name whichever plugin unregisters it, so unloading the original silences BossMod Reborn for AutoDuty (`Presets_*`, `Configuration`).
+  - Checked with `BossMod.HasModuleByDataId`'s `HasFunction`.
+- **Root cause of Maple's report:** with "auto-manage BossMod AI" on, AutoDuty sets `ActionTweaksConfig.PreventMovingWhileCasting=true` through that IPC. BossMod Reborn ignores the setting while Rotation Solver Reborn's autorotation is on; the original does not.
+- **Unverified:**
+  - that `ProcessCommand` reaches `/xldisableplugintemp` from a plugin (the source says it does: one command table)
+  - how long BossMod takes to unload, and BossMod Reborn to reload
+  - what happens when BossMod is in several collections
+- **Tests:** 166.
+
 ## Next
 0. **v0.2.1 is out** (owner approved "bump and push"): tag v0.2.1 on 6bfb12f; CI and Release passed; latest.zip and SHA256SUMS.txt are attached; pluginmaster.json for v0.2.1 is on main (1b48089). Next: ask Maple to replay the First Board and send `/sux report` (and the full log if a hit or KO shows). Any later push or release needs fresh approval.
 1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:

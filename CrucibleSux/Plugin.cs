@@ -52,6 +52,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ProgressionRunner journey;
     private readonly CombatRecorder recorder;
     private readonly TargetPicker picker;
+    private readonly BossModGate bossMod;
+    private readonly BossModPrompt bossModPrompt;
 
     /// <summary>Text "/sux report" copies on the next frame: the clipboard is only reachable while ImGui draws.</summary>
     private string? pendingCopy;
@@ -73,10 +75,13 @@ public sealed class Plugin : IDalamudPlugin
         this.recorder = new CombatRecorder(this.config, data, PluginInterface, ClientState, Condition, ObjectTable, TargetManager, ChatGui, AddonLifecycle,
             DataManager, Log, this.autoDuty, nav, () => this.runner.Current is not null || this.journey.Running, this.LogHeader);
         this.picker = new TargetPicker(this.config, data.TargetPriorities, ClientState, Condition, ObjectTable, TargetManager, this.recorder);
-        var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save);
-        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs, new JourneyTab(this.journey, this.config, this.Save),
-            new LogTab(this.recorder, this.config, this.Save), this.Save);
+        this.bossMod = new BossModGate(PluginInterface, CommandManager, ChatGui, Log, this.config, this.Save);
+        this.bossModPrompt = new BossModPrompt(this.bossMod);
+        var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save, this.StartSession);
+        this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs,
+            new JourneyTab(this.journey, this.config, this.Save, this.StartJourney), new LogTab(this.recorder, this.config, this.Save), this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
+        this.windowSystem.AddWindow(this.bossModPrompt);
 
         var help = new CommandInfo(this.OnCommand)
         {
@@ -104,6 +109,7 @@ public sealed class Plugin : IDalamudPlugin
         this.windowSystem.RemoveAllWindows();
         this.journey.Dispose();
         this.runner.Dispose();
+        this.bossMod.Dispose();
         this.recorder.Dispose();
         this.bestiary.Dispose();
     }
@@ -113,6 +119,9 @@ public sealed class Plugin : IDalamudPlugin
     private void OnUpdate(IFramework framework)
     {
         this.session.Update();
+        this.bossMod.Update(() => this.runner.Current is null && !this.journey.Running);
+        if (this.bossMod.Asking is not null)
+            this.bossModPrompt.IsOpen = true;
         this.runner.Update();
         this.journey.Update();
         this.picker.Update();
@@ -138,6 +147,8 @@ public sealed class Plugin : IDalamudPlugin
             $"Crucible SUX {PluginInterface.Manifest.AssemblyVersion}, client language {ClientState.ClientLanguage}, mode: {mode}",
             $"Settings: {this.config.BoardRunOptions()}, kill dangerous adds first: {(this.config.PickTargets ? "on" : "off")}",
         };
+        if (this.bossMod.TurnedOff)
+            lines.Add($"The original BossMod is turned off for this run{(this.bossMod.RebornReloaded ? "; BossMod Reborn was reloaded" : string.Empty)}");
         if (this.autoDuty.LastOverrides is { } pushed)
             lines.Add($"Last AutoDuty settings pushed: {string.Join(", ", pushed.Select(p => $"{p.Key}={p.Value}"))}");
         var plugins = this.session.Dependencies.SelectMany(r => r.Candidates)
@@ -200,9 +211,24 @@ public sealed class Plugin : IDalamudPlugin
             ChatGui.PrintError("[Crucible SUX] The journey is running and starts its own boards; \"/sux stop\" stops it.");
             return;
         }
-        var checks = this.runner.Start();
-        if (this.runner.Current is not null)
+        // Judged as if the original BossMod were off, so it is turned off only for a session that can start.
+        this.session.Update(force: true);
+        var checks = this.runner.Checks(fresh: true, beforeSwitch: true);
+        if (!Preflight.CanStart(checks))
+        {
+            PrintSessionProblems(checks);
             return;
+        }
+        this.bossMod.Run("the session", () =>
+        {
+            var started = this.runner.Start();
+            if (this.runner.Current is null)
+                PrintSessionProblems(started);
+        });
+    }
+
+    private static void PrintSessionProblems(IReadOnlyList<ReadinessCheck> checks)
+    {
         ChatGui.PrintError("[Crucible SUX] The session cannot start:");
         foreach (var check in checks.Where(c => c.Status == CheckStatus.Fail))
             ChatGui.PrintError($"[Crucible SUX] {check.Label}: {check.Detail}");
@@ -215,10 +241,22 @@ public sealed class Plugin : IDalamudPlugin
             ChatGui.Print("[Crucible SUX] The journey is already running.");
             return;
         }
-        if (this.journey.Start())
+        if (this.journey.Checks(beforeSwitch: true) is { Count: > 0 } problems)
+        {
+            PrintJourneyProblems(problems);
             return;
+        }
+        this.bossMod.Run("the journey", () =>
+        {
+            if (!this.journey.Start())
+                PrintJourneyProblems(this.journey.Checks());
+        });
+    }
+
+    private static void PrintJourneyProblems(IReadOnlyList<string> problems)
+    {
         ChatGui.PrintError("[Crucible SUX] The journey cannot start:");
-        foreach (var problem in this.journey.Checks())
+        foreach (var problem in problems)
             ChatGui.PrintError($"[Crucible SUX] {problem}");
     }
 

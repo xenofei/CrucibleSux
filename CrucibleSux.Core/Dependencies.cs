@@ -99,6 +99,16 @@ public static class DependencyCatalog
         return result;
     }
 
+    /// <summary>The loaded plugins that fail their role because they must be off (<see cref="DependencyInfo.Conflict"/>).</summary>
+    public static IReadOnlyList<DependencyInfo> LoadedConflicts(IEnumerable<RoleStatus> roles) =>
+        [.. roles.SelectMany(r => r.Candidates).Where(c => c.Info.Conflict is not null && c.Status == CheckStatus.Fail).Select(c => c.Info).Distinct()];
+
+    /// <summary><paramref name="installed"/> as it will be once every conflicting plugin is turned off.</summary>
+    public static IEnumerable<InstalledPlugin> WithConflictsOff(IEnumerable<InstalledPlugin> installed) =>
+        installed.Select(p => p.IsLoaded && All.Any(d => d.Conflict is not null && d.InternalName.Equals(p.InternalName, StringComparison.OrdinalIgnoreCase))
+            ? p with { IsLoaded = false }
+            : p);
+
     /// <summary>The rotation plugin a run hands combat to: the first loaded one in catalog order, or null.</summary>
     public static DependencyInfo? RotationEngine(IEnumerable<RoleStatus> roles) =>
         roles.FirstOrDefault(r => r.Role == DependencyRole.Rotation)?.Candidates

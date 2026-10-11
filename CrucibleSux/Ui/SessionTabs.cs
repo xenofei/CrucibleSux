@@ -10,7 +10,8 @@ using Dalamud.Plugin.Services;
 namespace CrucibleSux.Ui;
 
 /// <summary>The Run tab (queue, guard rails, start and stop, live status) and the History tab.</summary>
-public sealed class SessionTabs(SessionRunner runner, ProgressionRunner journey, Session session, Configuration config, IPlayerState player, Action save)
+/// <param name="start">Starts the session, turning the original BossMod off first when needed.</param>
+public sealed class SessionTabs(SessionRunner runner, ProgressionRunner journey, Session session, Configuration config, IPlayerState player, Action save, Action start)
 {
     private int addBoard = 1;
 
@@ -40,7 +41,7 @@ public sealed class SessionTabs(SessionRunner runner, ProgressionRunner journey,
         this.DrawQueue();
         ImGui.Spacing();
 
-        var checks = runner.Checks();
+        var checks = runner.Checks(beforeSwitch: true);
         foreach (var check in checks)
             MainWindow.DrawCheck(check);
 
@@ -48,7 +49,7 @@ public sealed class SessionTabs(SessionRunner runner, ProgressionRunner journey,
         using (ImRaii.Disabled(!Preflight.CanStart(checks)))
         {
             if (ImGui.Button("Start session"))
-                runner.Start();
+                start();
         }
         ImGui.SameLine();
         ImGui.TextDisabled("Unattended automation is against the game's terms of service.");

@@ -90,9 +90,10 @@ public sealed class SessionRunner : IDisposable
 
     /// <summary>
     /// The guard rails for <paramref name="queue"/> (the saved queue when null). AutoDuty is asked at most every 2 s unless
-    /// <paramref name="fresh"/>.
+    /// <paramref name="fresh"/>. <paramref name="beforeSwitch"/> judges the plugins as they will be once the original
+    /// BossMod is turned off (<see cref="BossModGate"/>); <see cref="Start"/> always judges them as they are.
     /// </summary>
-    public IReadOnlyList<ReadinessCheck> Checks(bool fresh = false, IReadOnlyList<QueueEntry>? queue = null)
+    public IReadOnlyList<ReadinessCheck> Checks(bool fresh = false, IReadOnlyList<QueueEntry>? queue = null, bool beforeSwitch = false)
     {
         queue ??= this.config.Queue;
         var now = DateTime.UtcNow;
@@ -103,8 +104,10 @@ public sealed class SessionRunner : IDisposable
         }
         bool onBst = this.player.IsLoaded && this.player.ClassJob.RowId == CrucibleIds.BeastmasterJob;
         bool inDuty = this.condition[ConditionFlag.BoundByDuty] || Boards.ByTerritory(this.clientState.TerritoryType) is not null;
+        bool switching = beforeSwitch && this.session.Conflicts.Count > 0;
         return Preflight.Check(new PreflightInput(
-            this.session.Snapshot, onBst, inDuty, this.session.Dependencies, this.executorProblem, queue, this.config.RankingsOptIn));
+            this.session.Snapshot, onBst, inDuty, switching ? this.session.DependenciesWithConflictsOff : this.session.Dependencies,
+            this.executorProblem, queue, this.config.RankingsOptIn, switching ? this.session.Conflicts : null));
     }
 
     /// <summary>

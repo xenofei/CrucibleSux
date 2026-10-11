@@ -4,6 +4,9 @@ namespace CrucibleSux.Core;
 /// <param name="OnBeastmaster">The current job is Beastmaster.</param>
 /// <param name="InDuty">The character is inside a duty, a board included.</param>
 /// <param name="ExecutorProblem">Why AutoDuty cannot take the run, or null when it can.</param>
+/// <param name="TurnOff">
+/// Conflicting plugins Crucible SUX turns off before the start; <paramref name="Dependencies"/> is then evaluated as if they were off.
+/// </param>
 public sealed record PreflightInput(
     CharacterSnapshot? Character,
     bool OnBeastmaster,
@@ -11,7 +14,8 @@ public sealed record PreflightInput(
     IReadOnlyList<RoleStatus> Dependencies,
     string? ExecutorProblem,
     IReadOnlyList<QueueEntry> Queue,
-    IReadOnlyCollection<int> RankingsOptIn);
+    IReadOnlyCollection<int> RankingsOptIn,
+    IReadOnlyList<DependencyInfo>? TurnOff = null);
 
 /// <summary>The guard rails checked before a session starts (docs/PLAN.md F12). Any Fail blocks the start.</summary>
 public static class Preflight
@@ -37,6 +41,12 @@ public static class Preflight
                 ? new("executor", "AutoDuty", CheckStatus.Pass, "Ready")
                 : new("executor", "AutoDuty", CheckStatus.Fail, input.ExecutorProblem),
         };
+        if (input.TurnOff is { Count: > 0 } turnOff)
+        {
+            checks.Insert(3, new("turn-off", "Turned off for the run", CheckStatus.Warn,
+                $"{string.Join(", ", turnOff.Select(d => d.DisplayName))} is loaded: it is turned off when the run starts and back on when it ends",
+                "Crucible SUX asks first, unless Settings allows it. Restarting the game also turns it back on."));
+        }
 
         if (input.Queue.Count == 0)
         {

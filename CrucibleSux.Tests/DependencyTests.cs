@@ -80,6 +80,21 @@ public class DependencyTests
     }
 
     [Fact]
+    public void Turning_the_original_BossMod_off_leaves_Reborn_covering_mechanics()
+    {
+        var installed = FullSet.Append(P("BossMod")).ToList();
+
+        Assert.Equal("BossMod", Assert.Single(DependencyCatalog.LoadedConflicts(DependencyCatalog.Evaluate(installed))).InternalName);
+        var after = DependencyCatalog.Evaluate(DependencyCatalog.WithConflictsOff(installed));
+        Assert.All(after, r => Assert.Equal(CheckStatus.Pass, r.Status));
+        Assert.Empty(DependencyCatalog.LoadedConflicts(after));
+    }
+
+    [Fact]
+    public void Turning_conflicts_off_leaves_other_plugins_alone() =>
+        Assert.Equal(FullSet, DependencyCatalog.WithConflictsOff(FullSet));
+
+    [Fact]
     public void BossMod_Reborn_alone_covers_rotation_and_mechanics()
     {
         var s = DependencyCatalog.Evaluate(FullSet.Where(p => p.InternalName != "RotationSolver"));

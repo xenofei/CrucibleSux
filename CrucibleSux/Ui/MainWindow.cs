@@ -306,7 +306,8 @@ public sealed class MainWindow : Window
 
     private void DrawPlugins()
     {
-        ImGui.TextWrapped("A session drives AutoDuty, which walks to Lauda, sets up the team, moves across the board and switches the rotation plugin and BossMod Reborn's AI on for each board. The original BossMod must be disabled.");
+        ImGui.TextWrapped("A session drives AutoDuty, which walks to Lauda, sets up the team, moves across the board and switches the rotation plugin and BossMod Reborn's AI on for each board. " +
+                           "The original BossMod must be off during a run: Crucible SUX offers to turn it off when a session or the journey starts and back on when it ends.");
         foreach (var role in this.session.Dependencies)
         {
             ImGui.Spacing();
@@ -345,6 +346,13 @@ public sealed class MainWindow : Window
             this.save();
         }
         ImGui.TextDisabled("Inside a board, a run with no movement, combat, HP or window change for this long is stopped.");
+        bool turnOff = this.config.TurnOffBossMod;
+        if (ImGui.Checkbox("Turn the original BossMod off for runs without asking", ref turnOff))
+        {
+            this.config.TurnOffBossMod = turnOff;
+            this.save();
+        }
+        ImGui.TextDisabled("A session or the journey turns it off when it starts and back on when it ends, with Dalamud's temporary switch. Off: you are asked each time.");
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Board runs");

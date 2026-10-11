@@ -63,6 +63,28 @@ public class PreflightTests
     }
 
     [Fact]
+    public void The_original_BossMod_to_be_turned_off_warns_but_allows_the_start()
+    {
+        var installed = Plugins.Append(P("BossMod")).ToList();
+        var input = Input() with
+        {
+            Dependencies = DependencyCatalog.Evaluate(DependencyCatalog.WithConflictsOff(installed)),
+            TurnOff = DependencyCatalog.LoadedConflicts(DependencyCatalog.Evaluate(installed)),
+        };
+
+        var checks = Preflight.Check(input);
+
+        Assert.True(Preflight.CanStart(checks));
+        var turnOff = Get(checks, "turn-off");
+        Assert.Equal(CheckStatus.Warn, turnOff.Status);
+        Assert.Contains("BossMod (original)", turnOff.Detail);
+    }
+
+    [Fact]
+    public void No_turn_off_row_when_nothing_conflicts() =>
+        Assert.DoesNotContain(Preflight.Check(Input()), c => c.Key == "turn-off");
+
+    [Fact]
     public void BossMod_Reborn_alone_can_fight()
     {
         var checks = Preflight.Check(Input(plugins: Plugins.Where(p => p.InternalName != "RotationSolver")));
