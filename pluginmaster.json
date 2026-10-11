@@ -3,8 +3,8 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.1.0.0",
-    "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting, suggests a team per board, and checks the companion plugins the later automation will drive.\nThis release is read-only: it automates nothing yet.",
+    "AssemblyVersion": "0.2.0.0",
+    "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
     "Tags": [
@@ -19,15 +19,15 @@
     "CanUnloadAsync": false,
     "LoadPriority": 0,
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
-    "Punchline": "Set-and-forget Unbroken eXecutor: Crucible of the Unbroken progress, readiness and team planning.",
+    "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.1.0/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.1.0/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.1.0/latest.zip",
-    "LastUpdate": 1791738126,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.0/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.0/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.0/latest.zip",
+    "LastUpdate": 1791744512,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Added\n\n- Overview of each board's clear, third degree, Apex and Legendary, plus the Crucible achievements and their next tier.\n- One-sitting check: whether you can clear every remaining board in one go and, if not, which board stops you and why. Also available as `/sux check`.\n- Beasts list: what you have befriended, the ranks read from the Master's Bestiary, and where to find missing beasts.\n- Experimental team suggestions per board and per battle.\n- Companion plugin check for navigation, rotation, mechanics, the board driver, travel and dialogs.\n- Rankings opt-in per board, off by default, for the automation releases to come."
+    "Changelog": "Added\n\n- Session queue (Run tab, `/sux run`, `/sux stop`): queue boards, each run once or more, or fill the queue with what this sitting can cover. AutoDuty plays each board, and your rotation plugin and BossMod Reborn's AI fight.\n- Guard rails before a session starts: the job, the companion plugins, a rotation plugin that can play Beastmaster, AutoDuty being idle and able to run each board, each board's readiness in queue order, and a rankings warning.\n- Watchdog:\n  - It stops a run that never reaches its board, or that shows no change inside a board for a set time (4 minutes by default).\n  - It retries a run that failed outside the board, up to a set number of tries.\n  - If anything goes wrong inside a board, it ends the session and leaves the decision to you.\n- Return report in chat and as a notification: runs, outcomes, first clears, why the session ended and what is next.\n- History tab: every run per character, with its outcome, duration and detail.\n- **Journey tab** (`/sux journey`): three opt-in parts, each off by default.\n  - **Job quests:** all 13 Beastmaster quests, scripted from the game's quest data. This includes the first-time job and gear setup, and the captures, levels and boards each quest needs.\n  - **Beasts:**\n    - wild captures: weaken the beast with auto-attacks, use Capture, then kill it\n    - gourds you hold\n    - Kornago shop purchases, with the exchange checked against the item name before confirming\n    - remnant farming on the highest cleared board\n\n    Remnants are spent only with this part on, never for the job quests alone.\n  - **Levelling:**\n    - FATEs ranked by expected EXP per second, with level sync\n    - zones chosen per level band, switching when another has measured faster (a zone left for having no FATEs is not chosen again for 10 minutes)\n  - **Safeguards:**\n    - It reads its progress back from the game.\n    - It stops after 15 minutes without progress or after 3 problems in a row. A beast that cannot be found is skipped after 12 minutes.\n    - It fights back when something attacks on the way.\n    - A board it starts runs to the end through the session queue. Stopping that session also stops the journey, and `/sux run` waits until the journey ends.\n    - It waits for you, and tells you, when only you can act (putting a beast on a Battlehorn, or a window it does not expect).\n\nChanged\n\n- The release is no longer read-only. Neither the session queue nor the journey has been tested in game yet, so stay nearby for the first runs."
   }
 ]
