@@ -29,9 +29,14 @@ public sealed unsafe class ProgressionRunner : IDisposable
 
     private static readonly TimeSpan TickEvery = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan StuckAfter = TimeSpan.FromMinutes(15);
-    private static readonly TimeSpan HuntFor = TimeSpan.FromMinutes(30);
+
+    /// <summary>Shorter than <see cref="StuckAfter"/>, so a hunt that finds nothing skips its beast before the run counts as stuck.</summary>
+    private static readonly TimeSpan HuntFor = TimeSpan.FromMinutes(12);
     private static readonly TimeSpan SearchPointFor = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan IdleZoneFor = TimeSpan.FromSeconds(60);
+
+    /// <summary>How long a zone left for having no FATEs is not chosen again for its measured rate.</summary>
+    private static readonly TimeSpan ZoneCooldown = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan NobodyThereFor = TimeSpan.FromSeconds(30);
     private const int MaxFailures = 3;
     private const float TalkRange = 3f;
@@ -69,6 +74,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private int gearSetup;
     private int gearTries;
 
+    /// <summary>The board of the session the journey started and still owns, or 0; survives <see cref="Reset"/>.</summary>
+    private int boardRun;
+
     // Per activity; cleared by Reset.
     private int stepIndex;
     private int visits;
@@ -81,7 +89,6 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private int searchPoint;
     private ulong prey;
     private ushort fate;
-    private bool startedBoard;
     private uint buyItem;
     private int buyBefore;
     private int buyTries;
@@ -89,6 +96,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
     // Levelling zone rotation; kept across activities.
     private uint zone;
     private uint band;
+    private uint leftIdle;
+    private DateTime leftIdleAt;
 
     public ProgressionRunner(
         ProgressionReader reader,
@@ -182,6 +191,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.failures = 0;
         this.skipped.Clear();
         this.key = null;
+        this.boardRun = 0;
+        this.rotation.ForceOff();
         this.lastProgress = DateTime.UtcNow;
         this.LastResult = null;
         this.Status = "Starting.";
@@ -196,9 +207,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
             return;
         this.Running = false;
         this.Reset();
-        if (this.startedBoard && this.boards.Current is not null)
+        if (this.boardRun != 0 && this.boards.Current is not null)
             this.boards.Stop(reason);
-        this.startedBoard = false;
+        this.boardRun = 0;
+        this.rotation.ForceOff();
         this.Status = reason;
         this.LastResult = reason;
         this.Waiting = null;
@@ -237,6 +249,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private void Tick(DateTime now)
     {
         this.Waiting = null;
+        if (this.boardRun != 0 && this.BoardTick(now))
+            return;
         var state = this.reader.Capture(out bool beastsUnknown);
         if (state is null)
         {
@@ -272,11 +286,18 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 return;
         }
 
-        string fp = $"{key}|{state.JobLevel}|{this.reader.Experience()}|{state.Owned.Count}|{string.Join(",", state.Inventory.Values)}|{this.client.TerritoryType}|{this.stepIndex}";
+        // Only what the game shows counts as progress; waiting on the player (see Wait) also keeps the clock fresh. The check
+        // comes before the windows and busy states below, so a dialogue or cutscene that never ends is caught too.
+        string fp = JourneyRules.Progress(key, state, this.reader.Experience(), this.client.TerritoryType);
         if (fp != this.fingerprint)
         {
             this.fingerprint = fp;
             this.lastProgress = now;
+        }
+        if (now - this.lastProgress > StuckAfter)
+        {
+            this.Fail(now, $"Nothing changed for {StuckAfter.TotalMinutes} minutes ({activity.Why})");
+            return;
         }
 
         // A board run belongs to AutoDuty, including its windows.
@@ -284,41 +305,70 @@ public sealed unsafe class ProgressionRunner : IDisposable
         {
             if (this.dialogue.Waiting is { } w)
                 this.Wait(now, w);
-            return;
         }
-        if (this.game.IsBusy)
-            return;
-
-        switch (activity.Kind)
+        else if (!this.game.IsBusy)
         {
-            case ActivityKind.Quest:
-                this.DoQuest(now, activity, state);
-                break;
-            case ActivityKind.Level:
-                this.DoLevel(now, state);
-                break;
-            case ActivityKind.Capture:
-                this.DoCapture(now, activity, state);
-                break;
-            case ActivityKind.BuyGourd:
-                this.DoBuy(now, activity, state);
-                break;
-            case ActivityKind.UseGourd:
-                this.DoUseGourd(now, activity);
-                break;
-            case ActivityKind.RunBoard:
-                this.DoBoard(now, activity);
-                break;
+            switch (activity.Kind)
+            {
+                case ActivityKind.Quest:
+                    this.DoQuest(now, activity, state);
+                    break;
+                case ActivityKind.Level:
+                    this.DoLevel(now, state);
+                    break;
+                case ActivityKind.Capture:
+                    this.DoCapture(now, activity, state);
+                    break;
+                case ActivityKind.BuyGourd:
+                    this.DoBuy(now, activity, state);
+                    break;
+                case ActivityKind.UseGourd:
+                    this.DoUseGourd(now, activity);
+                    break;
+                case ActivityKind.RunBoard:
+                    this.DoBoard(now, activity);
+                    break;
+            }
         }
 
-        if (this.Waiting is not null)
+        if (this.Waiting is null)
+            this.notifiedWait = false;
+    }
+
+    /// <summary>
+    /// While a board the journey started runs, the session runner owns the game, whatever the plan would say meanwhile. Once
+    /// it ends, a clear lets the plan move on, a stop by the player stops the journey, and anything else is a problem.
+    /// Returns true while the tick belongs to the board.
+    /// </summary>
+    private bool BoardTick(DateTime now)
+    {
+        var board = Boards.ByNumber(this.boardRun);
+        if (this.boards.Current is { } o)
         {
+            // The session runner has its own watchdog inside the board.
+            this.Say($"{board.Name} through AutoDuty: {o.Status}");
             this.lastProgress = now;
-            return;
+            return true;
         }
-        this.notifiedWait = false;
-        if (this.Running && now - this.lastProgress > StuckAfter)
-            this.Fail(now, $"Nothing changed for {StuckAfter.TotalMinutes} minutes ({activity.Why})");
+
+        this.boardRun = 0;
+        // AutoDuty drove the rotation plugin during the board, so what this side last sent no longer holds.
+        this.rotation.ForceOff();
+        var report = this.boards.LastReport;
+        string ending = report is null ? "." : $": {report.Ending}";
+        switch (JourneyRules.Classify(report))
+        {
+            case BoardEnd.Cleared:
+                this.failures = 0;
+                this.lastProgress = now;
+                return false;
+            case BoardEnd.Stopped:
+                this.Stop($"The {board.Name} session was stopped{ending}");
+                return true;
+            default:
+                this.Fail(now, $"The {board.Name} run ended without a clear{ending}");
+                return true;
+        }
     }
 
     /// <summary>The planner's activity, minus the beasts this run has given up on.</summary>
@@ -359,6 +409,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private void Reset()
     {
         this.travel.Reset();
+        // Chasing moves the player through vnavmesh directly, outside the trip Travel knows about.
+        this.nav.Stop();
         this.rotation.Release();
         var shop = this.game.Addon("ShopExchangeItem");
         if (shop != null)
@@ -474,7 +526,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
                     this.gearSetup = 4;
                 break;
             default:
-                this.game.UpdateCurrentGearset();
+                if (!this.game.UpdateBeastmasterGearset())
+                    Plugin.Log.Warning("Journey: no Beastmaster gear set to save the recommended gear into.");
                 this.gearSetup = 0;
                 return true;
         }
@@ -555,6 +608,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.visits++;
             return true;
         }
+        if (this.FightBack())
+            return false;
+        this.rotation.Release();
 
         var target = at.DataId == 0 ? null : this.game.Nearest(at.DataId);
         var point = target?.Position ?? new Vector3(at.X, at.Y, at.Z);
@@ -698,12 +754,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>Walks (never rides) to the escort's next stop, fighting off what attacks, then talks to the escorted NPC.</summary>
     private bool Escort(DateTime now, QuestStep step)
     {
-        if (this.game.InCombat)
-        {
-            this.nav.Stop();
-            this.rotation.Set(Mode.Auto, targetFreely: true);
+        if (this.FightBack())
             return false;
-        }
         this.rotation.Release();
         if (!this.escortArrived)
         {
@@ -717,6 +769,18 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.travel.Reset();
         }
         return this.Visit(now, step.At with { DataId = step.Arg }, mount: false);
+    }
+
+    /// <summary>Stands and fights while something has the player in combat (Travel neither mounts nor teleports then); true while it does.</summary>
+    private bool FightBack()
+    {
+        if (!this.game.InCombat)
+            return false;
+        if (this.nav.IsBusy)
+            this.nav.Stop();
+        this.rotation.Set(Mode.Auto, targetFreely: true);
+        this.Say("Fighting off an attacker.");
+        return true;
     }
 
     /// <summary>Walks into melee range of a moving target; true when there.</summary>
@@ -766,12 +830,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (this.Prey(src, s.JobLevel) is not { } target)
         {
             this.prey = 0;
-            if (this.game.InCombat)
-            {
-                this.Say("Fighting off an attacker.");
-                this.rotation.Set(Mode.Auto, targetFreely: true);
+            if (this.FightBack())
                 return;
-            }
             this.rotation.Release();
             this.Search(now, src);
             return;
@@ -810,9 +870,11 @@ public sealed unsafe class ProgressionRunner : IDisposable
         var me = this.game.Me;
         if (me is null)
             return null;
+        // Free, or fighting the player or the player's beast (which often pulls it first); never someone else's.
+        var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
         bool Fits(IBattleNpc o) =>
             GameActions.IsHostile(o) && src.WildNames.Contains(o.NameId) && o.Level <= level && o.CurrentHp > 0 && o.IsTargetable
-            && (o.TargetObjectId == 0 || o.TargetObjectId == me.GameObjectId);
+            && (o.TargetObjectId == 0 || ours.Contains(o.TargetObjectId));
         var mobs = this.objects.OfType<IBattleNpc>().Where(Fits).ToList();
         return mobs.FirstOrDefault(o => o.GameObjectId == this.prey) ?? mobs.OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault();
     }
@@ -868,6 +930,12 @@ public sealed unsafe class ProgressionRunner : IDisposable
         var shop = KornagoShop.For(currency);
         int index = KornagoShop.Position(shop.Lines, item, s.IsComplete);
         string name = this.reader.ItemName(item);
+        if (name.Length == 0)
+        {
+            // The exchange is confirmed by finding this name in the dialog; an empty name would match anything.
+            this.Stop($"Item {item} has no name in the game data, so the purchase cannot be checked.");
+            return;
+        }
         if (index < 0)
         {
             this.Stop($"The shop does not list the {name} yet.");
@@ -924,37 +992,26 @@ public sealed unsafe class ProgressionRunner : IDisposable
 
     // --- Boards ---------------------------------------------------------------------------------------------------
 
+    /// <summary>Starts one run of the board through the session runner; <see cref="BoardTick"/> follows it from there.</summary>
     private void DoBoard(DateTime now, Activity a)
     {
         var board = Boards.ByNumber(a.Board);
-        if (!this.startedBoard)
+        if (!this.EnsureJob(now))
+            return;
+        if (this.boards.Current is not null)
         {
-            if (!this.EnsureJob(now))
-                return;
-            if (this.boards.Current is not null)
-            {
-                this.Wait(now, "A board session is already running; the journey continues when it ends.");
-                return;
-            }
-            var checks = this.boards.Start([new QueueEntry(a.Board, 1)]);
-            if (this.boards.Current is null)
-            {
-                var fail = checks.FirstOrDefault(c => c.Status == CheckStatus.Fail);
-                this.Stop($"The {board.Name} cannot start{(fail is null ? "." : $": {fail.Label}: {fail.Detail}")}");
-                return;
-            }
-            this.startedBoard = true;
+            this.Wait(now, "A board session is already running; the journey continues when it ends.");
             return;
         }
-        if (this.boards.Current is { } o)
+        var checks = this.boards.Start([new QueueEntry(a.Board, 1)]);
+        if (this.boards.Current is null)
         {
-            // The session runner has its own watchdog inside the board.
-            this.Say($"{board.Name} through AutoDuty: {o.Status}");
-            this.lastProgress = now;
+            var fail = checks.FirstOrDefault(c => c.Status == CheckStatus.Fail);
+            this.Stop($"The {board.Name} cannot start{(fail is null ? "." : $": {fail.Label}: {fail.Detail}")}");
             return;
         }
-        this.startedBoard = false;
-        this.Fail(now, $"The {board.Name} run ended without a clear.");
+        this.boardRun = a.Board;
+        this.Say($"Starting the {board.Name} through AutoDuty.");
     }
 
     // --- Levelling ------------------------------------------------------------------------------------------------
@@ -984,7 +1041,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             if (this.travel.Tick(this.zone, Vector3.Zero, float.MaxValue) == TravelState.Failed)
             {
                 Plugin.Log.Information($"Journey: skipping {this.ZoneName(this.zone)}: {this.travel.Problem}");
-                this.zone = this.NextZone(zones, this.zone);
+                this.zone = JourneyRules.NextZone(zones, this.zone, this.meter.Rate);
                 this.travel.Reset();
                 if (this.zone == zones[0])
                     this.Fail(now, "No levelling zone for this level can be reached; attune the aetherytes there.");
@@ -1027,7 +1084,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         }
         this.rotation.Release();
 
-        if (this.BetterZone(zones, here) is { } better)
+        uint avoid = now - this.leftIdleAt < ZoneCooldown ? this.leftIdle : 0;
+        if (JourneyRules.BetterZone(zones, here, this.meter.Rate, avoid) is { } better)
         {
             this.zone = better;
             return;
@@ -1042,7 +1100,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.Say($"Waiting for a FATE in {this.ZoneName(here)}.");
         if (now - this.since > IdleZoneFor)
         {
-            this.zone = this.NextZone(zones, here);
+            this.zone = JourneyRules.NextZone(zones, here, this.meter.Rate);
+            this.leftIdle = here;
+            this.leftIdleAt = now;
             this.since = null;
         }
     }
@@ -1071,23 +1131,6 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 return f;
         }
         return null;
-    }
-
-    /// <summary>The next zone of the band to try: the one after <paramref name="current"/>, or the best measured once all are.</summary>
-    private uint NextZone(List<uint> zones, uint current)
-    {
-        if (zones.All(z => this.meter.Rate(z) is not null) && zones.Count > 1)
-            return zones.Where(z => z != current).OrderByDescending(z => this.meter.Rate(z)).First();
-        return zones[(zones.IndexOf(current) + 1) % zones.Count];
-    }
-
-    /// <summary>Another zone of the band whose measured EXP per hour beats this one's by a third, if any.</summary>
-    private uint? BetterZone(List<uint> zones, uint here)
-    {
-        if (this.meter.Rate(here) is not { } rate)
-            return null;
-        var best = zones.Where(z => z != here && this.meter.Rate(z) > rate * 1.33).OrderByDescending(z => this.meter.Rate(z)).ToList();
-        return best.Count > 0 ? best[0] : null;
     }
 
     private string ZoneName(uint territory) =>

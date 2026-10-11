@@ -10,7 +10,7 @@ using Dalamud.Plugin.Services;
 namespace CrucibleSux.Ui;
 
 /// <summary>The Run tab (queue, guard rails, start and stop, live status) and the History tab.</summary>
-public sealed class SessionTabs(SessionRunner runner, Session session, Configuration config, IPlayerState player, Action save)
+public sealed class SessionTabs(SessionRunner runner, ProgressionRunner journey, Session session, Configuration config, IPlayerState player, Action save)
 {
     private int addBoard = 1;
 
@@ -19,6 +19,11 @@ public sealed class SessionTabs(SessionRunner runner, Session session, Configura
         if (runner.Current is { } o)
         {
             this.DrawLive(o);
+            return;
+        }
+        if (journey.Running)
+        {
+            ImGui.TextWrapped("The Beastmaster journey is running and starts the boards it needs itself. Stop it (Journey tab or /sux stop) to run a session.");
             return;
         }
 

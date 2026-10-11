@@ -8,7 +8,7 @@ namespace CrucibleSux.Automation;
 /// <param name="Quest">The quest's name as the client shows it: a JournalAccept or JournalResult for it is confirmed, and a
 /// menu entry carrying it is picked.</param>
 /// <param name="Choice">The answer to pick when a menu asks a question (an English client's text).</param>
-/// <param name="Yes">Whether a yes/no box whose text contains this is answered "Yes". Null answers none.</param>
+/// <param name="Yes">Whether a yes/no box whose text contains this is answered "Yes". Null or empty answers none.</param>
 public sealed record DialogueExpect(string? Quest = null, string? Choice = null, string? Yes = null);
 
 /// <summary>
@@ -36,7 +36,7 @@ public sealed unsafe class Dialogue(GameActions game)
         if (game.Addon("SelectYesno") is var yesno && yesno != null)
         {
             string text = GameActions.AllText(yesno);
-            if (expect.Yes is { } yes && text.Contains(yes, StringComparison.OrdinalIgnoreCase))
+            if (expect.Yes is { Length: > 0 } yes && text.Contains(yes, StringComparison.OrdinalIgnoreCase))
                 this.Click(now, () => GameActions.Callback(yesno, 0));
             else
                 this.Waiting = $"A yes/no box the plugin does not expect: {FirstLine(text)}";
@@ -64,7 +64,7 @@ public sealed unsafe class Dialogue(GameActions game)
             var journal = game.Addon(name);
             if (journal == null)
                 continue;
-            if (expect.Quest is { } quest && GameActions.AllText(journal).Contains(quest, StringComparison.OrdinalIgnoreCase))
+            if (expect.Quest is { Length: > 0 } quest && GameActions.AllText(journal).Contains(quest, StringComparison.OrdinalIgnoreCase))
                 this.Click(now, () => GameActions.ClickButton(journal, (uint)button));
             else
                 this.Waiting = $"{name} for a quest the plugin is not running.";

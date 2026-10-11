@@ -196,17 +196,20 @@ public static class ProgressionPlanner
         if (capturable.Count > 0)
             return new(ActivityKind.Capture, why, Beasts: capturable);
 
+        // Spending remnants (and farming them) is the beasts option's call, never a side effect of the quests alone.
         var shop = missing.Where(b => b.IsSold && s.IsComplete(b.GourdQuest)).OrderBy(b => b.Price).ToList();
-        if (shop.FirstOrDefault(b => Affordable(s, b)) is { } buy)
+        if (o.Beasts && shop.FirstOrDefault(b => Affordable(s, b)) is { } buy)
             return new(ActivityKind.BuyGourd, why, Item: buy.Gourd, Beasts: [buy.Beast]);
-        if (shop.Count > 0 && FarmBoard(s) is { } board)
+        if (o.Beasts && shop.Count > 0 && FarmBoard(s) is { } board)
             return new(ActivityKind.RunBoard, $"{why} The {Names([shop[0].Beast])} gourd costs {shop[0].Price} {CurrencyName(shop[0].Currency)}; farming remnants.", Board: board);
 
         var later = missing.Where(b => b.CanCapture).OrderBy(b => b.MinLevel).FirstOrDefault();
         if (later is not null && o.Leveling)
             return new(ActivityKind.Level, $"{why} The next beast, the {Names([later.Beast])}, needs level {later.MinLevel}.", Level: later.MinLevel);
 
-        string blocker = later is not null
+        string blocker = shop.Count > 0 && !o.Beasts
+            ? $"buy the {Names([shop[0].Beast])} gourd by hand, or turn on \"Collect every beast\" so the plugin buys it"
+            : later is not null
             ? $"the {Names([later.Beast])} needs level {later.MinLevel}"
             : missing.Any(b => b.IsSold && !s.IsComplete(b.GourdQuest))
                 ? "the remaining gourds unlock with later job quests"

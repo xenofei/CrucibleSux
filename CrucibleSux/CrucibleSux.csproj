@@ -1,13 +1,13 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
 
   <PropertyGroup>
-    <Version>0.1.0.0</Version>
+    <Version>0.2.0.0</Version>
     <Author>Michiru Tsukikage</Author>
     <Name>Crucible SUX</Name>
     <Punchline>Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.</Punchline>
     <Description>Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.
 It checks whether you can clear the remaining boards in one sitting and suggests a team per board.
-Its session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Unattended automation is against the game's terms of service: use it at your own risk.</Description>
+Its session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.</Description>
     <RepoUrl>https://github.com/xenofei/CrucibleSux</RepoUrl>
     <IconUrl>https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png</IconUrl>
     <Tags>beastmaster;crucible;tracker;planner</Tags>

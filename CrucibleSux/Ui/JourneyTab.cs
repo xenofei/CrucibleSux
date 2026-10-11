@@ -22,7 +22,7 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
 
         using (ImRaii.Disabled(journey.Running))
         {
-            this.Option("Do the Beastmaster job quests", "All 13, from \"Strangers in the Wood\" to \"Blazing Trails\". Includes the captures, levels and boards each quest asks for.",
+            this.Option("Do the Beastmaster job quests", "All 13, from \"Strangers in the Wood\" to \"Blazing Trails\". Includes the captures, levels and boards each quest asks for; gourds are bought only with \"Collect every beast\" on.",
                 config.ProgressQuests, v => config.ProgressQuests = v);
             this.Option("Collect every beast", "Captures wild beasts, uses gourds you hold, and buys the rest from the Kornago merchant with remnants (farming the highest cleared board when short).",
                 config.ProgressBeasts, v => config.ProgressBeasts = v);

@@ -24,6 +24,7 @@ public enum TravelState
 public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState client, IDataManager data)
 {
     private const float MountBeyond = 40f;
+    private const float RepathBeyond = 5f;
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan TeleportTimeout = TimeSpan.FromSeconds(40);
 
@@ -51,7 +52,8 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
     public TravelState Tick(uint territory, Vector3 point, float radius, bool heightKnown = true, bool mount = true)
     {
         var now = DateTime.UtcNow;
-        if (this.target is not { } t || t.Territory != territory || t.Point != point)
+        // A moving target (an NPC, a FATE) re-paths only once it has moved a few yalms; the walk below aims at the new point.
+        if (this.target is not { } t || t.Territory != territory || Vector3.Distance(t.Point, point) > RepathBeyond)
         {
             this.Reset();
             this.target = (territory, point);

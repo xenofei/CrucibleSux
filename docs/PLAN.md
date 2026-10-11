@@ -125,7 +125,9 @@ Each feature names the player gripe it answers (from 02-player-gripes.md).
   - `BeastSources.cs`: all 50 beasts.
   - `KornagoShop.cs`: the two exchange shops and their visible line order.
   - `Leveling.cs`: the EXP table, the FATE picker, zones per band, the EXP-per-hour meter, and capture tactics.
-  - `Progression.cs`: the planner.
+  - `Progression.cs`: the planner. Gourds are bought, and remnants farmed, only with the beasts option on.
+  - `JourneyRules.cs`: what counts as progress for the watchdog, how a board run ended, and the levelling zone choice.
+- **Fresh-context review (2026-10-11):** 3 high, 7 medium and 6 low findings, all fixed. A board the journey starts stays its own until it ends; a clear is not a failure; a player stop from the Run tab stops the journey; `/sux run` waits for the journey; the watchdog counts only game progress and also catches a window that never closes; it fights back when attacked on the way; RSR is switched off outright at start, at stop and after a board.
 - **Plugin:**
   - `Automation/ProgressionRunner.cs`: the tick loop, the watchdog (15 minutes) and the 3-strike stop.
   - `GameActions.cs`: interact, actions, emotes, items, horns, addons and gear.

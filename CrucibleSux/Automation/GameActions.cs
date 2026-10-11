@@ -316,12 +316,29 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
         return true;
     }
 
-    /// <summary>Saves the equipped gear into the current gear set.</summary>
-    public void UpdateCurrentGearset()
+    /// <summary>
+    /// Saves the equipped gear into Beastmaster's gear set: the current set when it is Beastmaster's, else the first one;
+    /// false when there is none. A set of another job is never overwritten.
+    /// </summary>
+    public bool UpdateBeastmasterGearset()
     {
         var gs = RaptureGearsetModule.Instance();
-        if (gs != null && gs->CurrentGearsetIndex >= 0)
-            gs->UpdateGearset(gs->CurrentGearsetIndex);
+        if (gs == null)
+            return false;
+        int index = gs->CurrentGearsetIndex;
+        if (index < 0 || !gs->IsValidGearset(index) || gs->GetGearset(index)->ClassJob != CrucibleIds.BeastmasterJob)
+        {
+            index = -1;
+            for (int i = 0; i < 100 && index < 0; i++)
+            {
+                if (gs->IsValidGearset(i) && gs->GetGearset(i)->ClassJob == CrucibleIds.BeastmasterJob)
+                    index = i;
+            }
+        }
+        if (index < 0)
+            return false;
+        gs->UpdateGearset(index);
+        return true;
     }
 
     public static bool IsHostile(IGameObject o) => o.ObjectKind == ObjectKind.BattleNpc && o.SubKind == (byte)BattleNpcSubKind.Combatant;

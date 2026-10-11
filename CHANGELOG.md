@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.0] - 2026-10-11
 
 ### Added
 
@@ -19,12 +19,16 @@
     - gourds you hold
     - Kornago shop purchases, with the exchange checked against the item name before confirming
     - remnant farming on the highest cleared board
+
+    Remnants are spent only with this part on, never for the job quests alone.
   - **Levelling:**
     - FATEs ranked by expected EXP per second, with level sync
-    - zones chosen per level band, switching when another has measured faster
+    - zones chosen per level band, switching when another has measured faster (a zone left for having no FATEs is not chosen again for 10 minutes)
   - **Safeguards:**
     - It reads its progress back from the game.
-    - It stops after 15 minutes without progress or after 3 problems in a row.
+    - It stops after 15 minutes without progress or after 3 problems in a row. A beast that cannot be found is skipped after 12 minutes.
+    - It fights back when something attacks on the way.
+    - A board it starts runs to the end through the session queue. Stopping that session also stops the journey, and `/sux run` waits until the journey ends.
     - It waits for you, and tells you, when only you can act (putting a beast on a Battlehorn, or a window it does not expect).
 
 ### Changed

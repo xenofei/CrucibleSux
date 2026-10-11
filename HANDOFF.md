@@ -37,12 +37,13 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 - **What it does:** the job quests, beast collection and levelling, each opt-in and off by default. It was built from game data and online sources only.
 - **Status and gaps:** see PLAN.md, the Phase 2b status block, for the file list and everything unverified.
 - **Research:** docs/research/06–10.
-- **Tests:** 112.
+- **Tests:** 131.
+- **Review:** the fresh-context review found 3 high, 7 medium and 6 low issues; the owner said "fix all", and all are fixed (PLAN.md Phase 2b block). Gourds are bought only with "Collect every beast" on (the recommendation for finding 16, applied under "fix all"; the owner can reverse it).
+
+**v0.2.0** (2026-10-11): the owner approved the push and release. `release.yml` builds the release and commits pluginmaster.json to main itself.
 
 ## Next
-1. **Fresh-context review** of the Phase 2b plugin layer, `CrucibleSux/Automation/*` and the Journey tab. Use the hub-code-reviewer agent; the owner decides what to fix.
-2. **Release:** once the owner approves a push, bump `<Version>` to 0.2.0.0, rename `[Unreleased]` to `[0.2.0] - date`, and tag v0.2.0. Ask before pushing or tagging.
-3. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
+1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
    - Run tab preflight
    - AutoDuty takes the overrides (AutoDuty log: "Applied 7 override(s)")
    - the board is reached, the watchdog does not trip, the history row and the report appear
@@ -57,7 +58,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
    - one gourd purchase
 
    Capture the Battlehorn assignment callback (Bestiary context menu) so it can be automated.
-4. **Phase 3:** the native executor, so Crucible SUX makes the route, treasure and shop decisions itself. It also needs:
+2. **Phase 3:** the native executor, so Crucible SUX makes the route, treasure and shop decisions itself. It also needs:
    - a way to set "Participate in rankings" (an addon callback, traced live)
    - Resume Progress recovery
 

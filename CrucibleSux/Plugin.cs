@@ -59,7 +59,7 @@ public sealed class Plugin : IDalamudPlugin
         this.journey = new ProgressionRunner(new ProgressionReader(PlayerState, DataManager), game, new Travel(game, nav, ClientState, DataManager),
             new Dialogue(game), nav, new RotationSolverIpc(PluginInterface, Log), this.runner, this.config, PluginInterface, ClientState, FateTable,
             ObjectTable, DataManager, ChatGui, NotificationManager);
-        var sessionTabs = new SessionTabs(this.runner, this.session, this.config, PlayerState, this.Save);
+        var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save);
         this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs, new JourneyTab(this.journey, this.config, this.Save), this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
 
@@ -131,6 +131,11 @@ public sealed class Plugin : IDalamudPlugin
         if (this.runner.Current is not null)
         {
             ChatGui.Print("[Crucible SUX] A session is already running.");
+            return;
+        }
+        if (this.journey.Running)
+        {
+            ChatGui.PrintError("[Crucible SUX] The journey is running and starts its own boards; \"/sux stop\" stops it.");
             return;
         }
         var checks = this.runner.Start();

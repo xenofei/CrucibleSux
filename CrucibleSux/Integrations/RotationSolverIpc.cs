@@ -54,6 +54,17 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
         }
     }
 
+    /// <summary>
+    /// Turns the rotation off and drops the target override whatever this class last sent: the player or another plugin
+    /// (AutoDuty during a board) may have changed them since.
+    /// </summary>
+    public void ForceOff()
+    {
+        this.current = null;
+        this.freely = true;
+        this.Set(Mode.Off);
+    }
+
     /// <summary>Turns the rotation off and drops the target override; safe to call when nothing was set.</summary>
     public void Release()
     {

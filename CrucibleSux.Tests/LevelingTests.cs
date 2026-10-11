@@ -80,6 +80,31 @@ public class LevelingTests
         Assert.Null(m.Rate(134));
     }
 
+    [Fact]
+    public void The_meter_counts_exp_across_a_level_up()
+    {
+        var m = new ExpMeter();
+        var t = new DateTime(2026, 10, 11, 12, 0, 0, DateTimeKind.Utc);
+        m.Record(t, 134, 10, 5000);
+        m.Record(t.AddMinutes(4), 134, 10, 5800);
+        m.Record(t.AddMinutes(8), 134, 11, 100);
+        m.Record(t.AddMinutes(10), 134, 11, 100);
+
+        // 800 + (5900 - 5800) + 100 = 1000 EXP in 10 minutes.
+        Assert.Equal(6000, m.Rate(134));
+    }
+
+    [Theory]
+    [InlineData(40, 4, false, CaptureMove.Capture)]
+    [InlineData(41, 4, false, CaptureMove.Weaken)]
+    [InlineData(60, 5, false, CaptureMove.Capture)]
+    [InlineData(61, 5, false, CaptureMove.Weaken)]
+    [InlineData(61, 9, false, CaptureMove.Weaken)]
+    [InlineData(90, 10, false, CaptureMove.Capture)]
+    [InlineData(91, 10, false, CaptureMove.Weaken)]
+    public void Capture_thresholds_change_at_gaps_of_five_and_ten(int hp, int gap, bool marked, CaptureMove expected) =>
+        Assert.Equal(expected, CaptureTactics.Decide(hp, gap, marked));
+
     [Theory]
     [InlineData(100, 0, false, CaptureMove.Weaken)]
     [InlineData(40, 0, false, CaptureMove.Capture)]

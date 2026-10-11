@@ -176,6 +176,25 @@ public class ProgressionTests
     }
 
     [Fact]
+    public void Quests_alone_never_spend_remnants()
+    {
+        // Gobsmacked asks for 20 beasts; at level 1 nothing more can be captured, and the Faded shop is open and affordable.
+        var s = State(
+            level: 1,
+            done: Before(CrucibleIds.Quests.Gobsmacked),
+            accepted: (CrucibleIds.Quests.Gobsmacked, 2),
+            owned: BeastSources.All.Where(b => b.CanCapture && b.MinLevel <= 1).Select(b => b.Beast).Append(Beast.CuSith),
+            items: new() { [CrucibleIds.FadedRemnant] = 100 },
+            boards: [1]);
+
+        var questsOnly = ProgressionPlanner.Next(s, new(true, false, false));
+
+        Assert.Equal(ActivityKind.Blocked, questsOnly.Kind);
+        Assert.Contains("Collect every beast", questsOnly.Why);
+        Assert.Equal(ActivityKind.BuyGourd, ProgressionPlanner.Next(s, new(true, true, false)).Kind);
+    }
+
+    [Fact]
     public void Short_of_remnants_farms_the_highest_cleared_board()
     {
         var s = State(
@@ -280,5 +299,21 @@ public class BeastSourceTests
         Assert.Equal(7, KornagoShop.Position(KornagoShop.Faded, CrucibleIds.BrightRemnant, Upto34));
         Assert.Equal(11, KornagoShop.Position(KornagoShop.Faded, CrucibleIds.BrightRemnant, _ => true));
         Assert.Equal(-1, KornagoShop.Position(KornagoShop.Faded, CrucibleIds.BrightRemnant, _ => false));
+    }
+
+    [Fact]
+    public void The_bright_shop_hides_gear_until_its_quests()
+    {
+        bool Upto36(uint q) => q is CrucibleIds.Quests.ABeastmastersPath or CrucibleIds.Quests.FreeForAll;
+
+        Assert.Equal((KornagoShop.BrightShop, KornagoShop.BrightShopName), (KornagoShop.For(CrucibleIds.BrightRemnant).Shop, KornagoShop.For(CrucibleIds.BrightRemnant).Name));
+        Assert.Equal((KornagoShop.FadedShop, KornagoShop.FadedShopName), (KornagoShop.For(CrucibleIds.FadedRemnant).Shop, KornagoShop.For(CrucibleIds.FadedRemnant).Name));
+        Assert.Equal(7, KornagoShop.Position(KornagoShop.Bright, 49820, Upto36));
+        Assert.Equal(16, KornagoShop.Position(KornagoShop.Bright, 50756, Upto36));
+        Assert.Equal(-1, KornagoShop.Position(KornagoShop.Bright, 50770, Upto36));
+
+        // The orchestrion rolls after the hidden Mastery Rematch lines move up by those 9 lines.
+        Assert.Equal(30, KornagoShop.Position(KornagoShop.Bright, 52369, Upto36));
+        Assert.Equal(39, KornagoShop.Position(KornagoShop.Bright, 52369, _ => true));
     }
 }

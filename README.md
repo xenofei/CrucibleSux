@@ -17,7 +17,7 @@ Queue the boards, step away, and come back to a report.
 - **History:** every run per character, with its outcome, duration and first clears.
 - **Journey (opt-in, each part off by default):** takes a character from the unlock quest to level 50 with all 50 beasts.
   - **Job quests:** all 13, including the captures, levels and boards each quest asks for.
-  - **Beasts:** captures the wild ones, uses gourds you hold, and buys the rest from the Kornago merchant (farming remnants on the highest cleared board when short).
+  - **Beasts:** captures the wild ones, uses gourds you hold, and buys the rest from the Kornago merchant (farming remnants on the highest cleared board when short). Remnants are spent only with this part on.
   - **Levelling:** FATEs in the zones that suit each level band, picked by expected EXP per second, with level sync. It moves zone when another one has measured faster.
 
   It needs vnavmesh and Rotation Solver Reborn. You put beasts on Battlehorns yourself when asked, because no API to do it is known yet.
