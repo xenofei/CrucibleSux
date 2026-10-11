@@ -73,7 +73,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - AutoDuty accepting `Meta.Crucible.TeamMode` and `RecommendedTeamCap` (names read from 4a0dfdc)
 
 ## Next
-0. **v0.2.1 is out** (owner approved "bump and push"). Check that the Release workflow committed pluginmaster.json for v0.2.1. Then ask Maple to replay the First Board and send `/sux report` (and the full log if a hit or KO shows). Any later push or release needs fresh approval.
+0. **v0.2.1 is out** (owner approved "bump and push"): tag v0.2.1 on 6bfb12f; CI and Release passed; latest.zip and SHA256SUMS.txt are attached; pluginmaster.json for v0.2.1 is on main (1b48089). Next: ask Maple to replay the First Board and send `/sux report` (and the full log if a hit or KO shows). Any later push or release needs fresh approval.
 1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
    - Run tab preflight
    - AutoDuty takes the overrides (AutoDuty log: "Applied 10 override(s)" with the defaults; 13 in Score mode)
