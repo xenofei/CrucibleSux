@@ -1,0 +1,14 @@
+bin/
+obj/
+.vs/
+*.user
+*.suo
+.idea/
+*.swp
+__pycache__/
+.claude/worktrees/
+.work/
+TestResults/
+
+# Raw sheet dumps hold Square Enix game text: keep them local (docs/data/xbm-columns.md is the committed summary).
+docs/data/dumps/

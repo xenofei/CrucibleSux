@@ -1,0 +1,179 @@
+name: Release
+
+# Push a tag like v0.1.0 to build the plugin against the current Dalamud, attach latest.zip and SHA256SUMS.txt to a
+# GitHub Release, and refresh pluginmaster.json on main so custom-repo users get the update.
+#
+# Guards: the tag must equal the csproj <Version> (an -rcN suffix is allowed on the tag), the csproj must carry a
+# CrucibleSuxTestedGameVersion, and a non-prerelease tag must have its CHANGELOG.md section. A tag containing "-" is
+# published as a prerelease and never touches pluginmaster.json.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      # Creates the release and pushes pluginmaster.json to main.
+      contents: write
+    steps:
+      - name: Check out the tagged commit
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # The pluginmaster step pushes to main with this token.
+          persist-credentials: true
+
+      - name: Resolve the tag
+        shell: pwsh
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if ($env:TAG -notmatch '^v(\d+\.\d+\.\d+)(-[0-9A-Za-z.]+)?$') {
+            Write-Host "::error::Tag '$env:TAG' is not of the form vX.Y.Z or vX.Y.Z-suffix."
+            exit 1
+          }
+          $base = $Matches[1]
+          $suffix = if ($Matches[2]) { $Matches[2] } else { '' }
+          $prerelease = $suffix -ne ''
+          "RELEASE_TAG=$env:TAG" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_VERSION=$base" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_SUFFIX=$suffix" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "RELEASE_PRERELEASE=$($prerelease.ToString().ToLowerInvariant())" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Guard - csproj Version equals the tag, tested game version is set
+        shell: pwsh
+        run: |
+          $csproj = [xml](Get-Content CrucibleSux/CrucibleSux.csproj -Raw)
+          $groups = $csproj.Project.PropertyGroup
+          $version = ($groups | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1)
+          if (-not $version) { Write-Host "::error::CrucibleSux.csproj has no <Version>."; exit 1 }
+          $short = $version.Trim() -replace '^(\d+\.\d+\.\d+)\.0$', '$1'
+          if ($env:RELEASE_SUFFIX -ne '' -and $env:RELEASE_SUFFIX -notmatch '^-rc\d+$') {
+            Write-Host "::error::Tag suffix '$env:RELEASE_SUFFIX' is not allowed; only -rcN is."
+            exit 1
+          }
+          if ($short -ne $env:RELEASE_VERSION) {
+            Write-Host "::error::Tag $env:RELEASE_TAG names $env:RELEASE_VERSION but CrucibleSux.csproj has <Version>$version</Version>."
+            exit 1
+          }
+          $tested = ($groups | ForEach-Object { $_.CrucibleSuxTestedGameVersion } | Where-Object { $_ -and $_.Trim() } | Select-Object -First 1)
+          if (-not $tested -or $tested.Trim() -notmatch '^\d{4}\.\d{2}\.\d{2}\.\d{4}\.\d{4}$') {
+            Write-Host "::error::CrucibleSux.csproj needs a <CrucibleSuxTestedGameVersion> like 2026.09.15.0000.0000."
+            exit 1
+          }
+          Write-Host "Version $version matches $env:RELEASE_TAG; tested on game $tested"
+
+      - name: Guard - CHANGELOG.md has the version's section
+        if: env.RELEASE_PRERELEASE == 'false'
+        shell: pwsh
+        run: |
+          $lines = Get-Content CHANGELOG.md
+          $heading = "## [$env:RELEASE_VERSION]"
+          $start = [Array]::FindIndex([string[]]$lines, [Predicate[string]]{ param($l) $l.StartsWith($heading) })
+          if ($start -lt 0) { Write-Host "::error::CHANGELOG.md has no '$heading' section."; exit 1 }
+          $bullets = 0
+          for ($i = $start + 1; $i -lt $lines.Count -and -not $lines[$i].StartsWith('## '); $i++) {
+            if ($lines[$i].TrimStart().StartsWith('- ')) { $bullets++ }
+          }
+          if ($bullets -eq 0) { Write-Host "::error::CHANGELOG.md section '$heading' has no bullet."; exit 1 }
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download Dalamud
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile dalamud.zip
+          Expand-Archive dalamud.zip -DestinationPath "$env:RUNNER_TEMP\dalamud"
+          "DALAMUD_HOME=$env:RUNNER_TEMP\dalamud" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build and test
+        run: |
+          dotnet build CrucibleSux.sln -c Release -warnaserror
+          dotnet test --project CrucibleSux.Tests -c Release --no-build
+
+      # The solution builds the plugin under bin/x64/Release; the package step and make_pluginmaster.py read
+      # bin/Release, so build the plugin project on its own as the packaging step.
+      - name: Build the plugin package
+        run: dotnet build CrucibleSux/CrucibleSux.csproj -c Release
+
+      - name: Hash latest.zip and the CrucibleSux.dll inside it
+        shell: pwsh
+        env:
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          $package = 'CrucibleSux/bin/Release/CrucibleSux'
+          $zip = Join-Path $package 'latest.zip'
+          if (-not (Test-Path $zip)) { Write-Host "::error::$zip was not built."; exit 1 }
+          $extract = Join-Path $env:RUNNER_TEMP 'latest-zip'
+          Expand-Archive $zip -DestinationPath $extract -Force
+          $dll = Join-Path $extract 'CrucibleSux.dll'
+          if (-not (Test-Path $dll)) { Write-Host "::error::latest.zip has no CrucibleSux.dll at its root."; exit 1 }
+          $zipHash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $dllHash = (Get-FileHash $dll -Algorithm SHA256).Hash.ToLowerInvariant()
+          $sums = Join-Path (Resolve-Path $package).Path 'SHA256SUMS.txt'
+          [IO.File]::WriteAllText($sums, "$zipHash  latest.zip`n$dllHash  CrucibleSux.dll`n")
+          $privacy = "https://github.com/$env:REPOSITORY/blob/$env:RELEASE_TAG/docs/privacy.md"
+          $notes = @(
+            '### Verify this build', '',
+            '| File | SHA-256 |', '|---|---|',
+            "| ``latest.zip`` | ``$zipHash`` |",
+            "| ``CrucibleSux.dll`` (inside latest.zip) | ``$dllHash`` |", '',
+            "What the plugin reads and stores: [docs/privacy.md]($privacy).", ''
+          ) -join "`n"
+          $notesPath = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          [IO.File]::WriteAllText($notesPath, $notes)
+          "RELEASE_NOTES_PATH=$notesPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Create the GitHub Release with latest.zip
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: Crucible SUX ${{ env.RELEASE_TAG }}
+          files: |
+            CrucibleSux/bin/Release/CrucibleSux/latest.zip
+            CrucibleSux/bin/Release/CrucibleSux/SHA256SUMS.txt
+          body_path: ${{ env.RELEASE_NOTES_PATH }}
+          prerelease: ${{ env.RELEASE_PRERELEASE == 'true' }}
+          generate_release_notes: true
+
+      - name: Refresh pluginmaster.json on main
+        if: env.RELEASE_PRERELEASE == 'false'
+        shell: pwsh
+        run: |
+          python tools/make_pluginmaster.py --tag "$env:RELEASE_TAG"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item pluginmaster.json "$env:RUNNER_TEMP\pluginmaster.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          git checkout -B main origin/main
+          Copy-Item "$env:RUNNER_TEMP\pluginmaster.json" pluginmaster.json
+          git add pluginmaster.json
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { Write-Host "pluginmaster.json unchanged"; exit 0 }
+          git commit -m "chore: pluginmaster.json for $env:RELEASE_TAG"
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            git push origin main
+            if ($LASTEXITCODE -eq 0) { exit 0 }
+            git fetch origin main
+            git rebase origin/main
+            if ($LASTEXITCODE -ne 0) {
+              git checkout --theirs pluginmaster.json
+              git add pluginmaster.json
+              $env:GIT_EDITOR = 'true'
+              git rebase --continue
+              if ($LASTEXITCODE -ne 0) { git rebase --abort; Write-Host "::error::could not rebase the pluginmaster commit"; exit 1 }
+            }
+          }
+          Write-Host "::error::pluginmaster.json push rejected three times; re-run the workflow"
+          exit 1

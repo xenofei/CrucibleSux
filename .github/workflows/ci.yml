@@ -1,0 +1,77 @@
+name: CI
+
+# Every push to main and every pull request builds the solution with warnings as errors, runs the tests and checks
+# the formatting. A weekly run (Monday 06:00 UTC) catches a Dalamud update that breaks the build between commits.
+# The api16 job builds against Dalamud API 16 ahead of its release; it never fails the workflow.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download Dalamud
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/latest.zip -OutFile dalamud.zip
+          Expand-Archive dalamud.zip -DestinationPath "$env:RUNNER_TEMP\dalamud"
+          "DALAMUD_HOME=$env:RUNNER_TEMP\dalamud" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build (warnings are errors)
+        run: dotnet build CrucibleSux.sln -c Release -warnaserror
+
+      - name: Test
+        run: dotnet test --project CrucibleSux.Tests -c Release --no-build
+
+      - name: Formatting
+        run: dotnet format CrucibleSux.sln --verify-no-changes --no-restore
+
+      - name: Release helper compiles
+        run: python -m py_compile tools/make_pluginmaster.py
+
+  api16:
+    runs-on: windows-latest
+    continue-on-error: true
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Download Dalamud (API 16)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri https://goatcorp.github.io/dalamud-distrib/api16/latest.zip -OutFile dalamud.zip
+          Expand-Archive dalamud.zip -DestinationPath "$env:RUNNER_TEMP\dalamud"
+          "DALAMUD_HOME=$env:RUNNER_TEMP\dalamud" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build against API 16
+        # Warnings are not errors here: the point is which members API 16 broke, and the build log lists them.
+        run: dotnet build CrucibleSux.sln -c Release

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Pure logic, no Dalamud: game IDs, readiness rules, progress, the team recommender and the dependency check. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>CrucibleSux.Core</RootNamespace>
+  </PropertyGroup>
+
+</Project>
