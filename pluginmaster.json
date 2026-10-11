@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.2.2.0",
+    "AssemblyVersion": "0.2.3.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.2/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.2/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.2/latest.zip",
-    "LastUpdate": 1791759973,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.3/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.3/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.2.3/latest.zip",
+    "LastUpdate": 1791761114,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Changed\n\n- BossMod Reborn is now the only mechanics plugin. The original BossMod no longer counts, and a session will not start while it is enabled, because it blocks movement while you cast. Installed but disabled is fine."
+    "Changelog": "Added\n\n- **The original BossMod is turned off for a run:** when a session or the journey starts while it is enabled, Crucible SUX asks to turn it off and turns it back on when the run ends.\n  - It uses Dalamud's temporary switch (`/xldisableplugintemp`), so your plugin settings never change, and restarting the game turns it back on as well.\n  - \"Do this without asking next time\" in the question, or the setting under Settings › Sessions, skips the question.\n  - Both BossMods answer AutoDuty under the same names. When the original unloads, those names go silent, so BossMod Reborn is reloaded once to answer again.\n  - Dalamud can switch a plugin only when it is in exactly one collection. If it is in more than one, the run does not start, and the chat explains why.\n- The journey now checks for the original BossMod too: it blocks movement while you cast in FATEs as well."
   }
 ]
