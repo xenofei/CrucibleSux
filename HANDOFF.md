@@ -43,7 +43,7 @@ A Dalamud plugin that fully automates FFXIV's Crucible of the Unbroken (the Beas
    - The Bestiary page reader recognises ranks. RankEstimator assumes `grow × pct / 100`; if it is wrong, ranks read "not recognised".
    - The beast list and achievements load.
    - Screenshot the window.
-2. Create the GitHub repo `xenofei/CrucibleSux`, push, then tag `v0.1.0`. The owner must approve the push.
+2. Repo created and pushed (public, https://github.com/xenofei/CrucibleSux). On the first push, CI's build-and-test job passed; the api16 job failed as expected, because API 16 has no `Lumina.Excel.Sheets`. Next: tag `v0.1.0` (owner approval) to publish the release and pluginmaster.json, ideally after the in-game check.
 3. Phase 2: the orchestrator through AutoDuty IPC, the combat controller, and F11 run history.
 
 ## Check command
