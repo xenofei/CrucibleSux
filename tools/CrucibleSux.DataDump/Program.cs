@@ -32,7 +32,7 @@ foreach (var r in Sheet<XBMContent>())
     var cfc = cfcs.GetRowOrDefault(r.Unknown33);
     Console.WriteLine($"{r.RowId}: cfc={r.Unknown33} '{cfc?.Name}' territory={cfc?.TerritoryType.RowId} lvl={cfc?.ClassJobLevelRequired} ilvl={cfc?.ItemLevelRequired} " +
                       $"team={r.Unknown34} recRank={r.Unknown35} syncRank={r.Unknown36} " +
-                      $"bonus=[{r.Unknown0},{r.Unknown1},{r.Unknown2},{r.Unknown3},{r.Unknown4},{r.Unknown5},{r.Unknown6},{r.Unknown7},{r.Unknown8},{r.Unknown9},{r.Unknown10},...]");
+                      $"bonus=[{string.Join(',', Enumerable.Range(0, 33).Select(i => typeof(XBMContent).GetProperty($"Unknown{i}")?.GetValue(r)))}]");
 }
 
 // The stable XBMPet type's column hash no longer matches the game (Lumina refuses it), so XBMPet is read raw.
@@ -62,7 +62,6 @@ foreach (var r in petSheet)
 Console.WriteLine("\n## Pet (first 60)");
 foreach (var p in pets.Take(60))
     Console.WriteLine($"{p.RowId}: {p.Name}");
-_ = actions;
 
 Console.WriteLine("\n## XBMPetParamGrow (subrow = rank - 1): STR/INT/PR/MR/CON at rank 1 and the last rank");
 foreach (var row in Subsheet<XBMPetParamGrow>())
@@ -85,6 +84,27 @@ foreach (var row in Subsheet<XBMBattleDetail>())
     foreach (var d in row)
         Console.WriteLine($"{row.RowId}.{d.SubrowId}: name={d.Unknown0} '{bnpcNames.GetRowOrDefault(d.Unknown0)?.Singular}' u1={d.Unknown1} act={d.Unknown2}/{d.Unknown3} resist={d.Unknown4} " +
                           $"u5..9={d.Unknown5},{d.Unknown6},{d.Unknown7},{d.Unknown8},{d.Unknown9} element={d.Unknown10}");
+
+// XBMBattleDetailAction: u0 Action row, u1 XBMActionTarget, u2 XBMActionEffectType (shape), u3 Status inflicted. These are
+// the two abilities the board's enemy intel shows for each enemy.
+var intel = data.Excel.GetSheet<RawRow>(name: "XBMBattleDetailAction");
+var intelTarget = data.Excel.GetSheet<RawRow>(name: "XBMActionTarget");
+var intelShape = data.Excel.GetSheet<RawRow>(name: "XBMActionEffectType");
+var statuses = Sheet<Status>();
+string Ability(int row)
+{
+    if (row == 0 || !intel.TryGetRow((uint)row, out var r))
+        return "-";
+    uint id = r.ReadUInt32Column(0), status = r.ReadUInt32Column(3);
+    var a = actions.GetRowOrDefault(id);
+    return $"[{id} '{a?.Name}' cast={a?.Cast100ms / 10.0}s castType={a?.CastType} range={a?.EffectRange} width={a?.XAxisModifier} omen='{a?.Omen.ValueNullable?.Path}' " +
+           $"target={intelTarget.GetRow(r.ReadUInt8Column(1)).ReadStringColumn(0)} shape={intelShape.GetRow(r.ReadUInt8Column(2)).ReadStringColumn(0)}" +
+           (status != 0 ? $" status={status} '{statuses.GetRowOrDefault(status)?.Name}'" : string.Empty) + "]";
+}
+Console.WriteLine("\n## XBMBattleDetail abilities (via XBMBattleDetailAction)");
+foreach (var row in Subsheet<XBMBattleDetail>())
+    foreach (var d in row)
+        Console.WriteLine($"{row.RowId}.{d.SubrowId} '{bnpcNames.GetRowOrDefault(d.Unknown0)?.Singular}': {Ability(d.Unknown2)} {Ability(d.Unknown3)}");
 
 Console.WriteLine("\n## BNpcResist rows used by the battles");
 var resists = Sheet<BNpcResist>();

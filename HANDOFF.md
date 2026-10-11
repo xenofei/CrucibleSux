@@ -42,7 +42,16 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
 
 **v0.2.0 released (2026-10-11):** main was fast-forwarded to `phase-2-orchestrator` (b53192e) and tagged v0.2.0. CI and the Release workflow passed. The release has latest.zip and SHA256SUMS.txt, and `release.yml` committed pluginmaster.json for v0.2.0 to main (1ab4751). The branch is now merged; work continues on main or a new branch.
 
+**First tester report and combat research (2026-10-11):**
+- The tester (Maple) used the original BossMod, RSR and the First Board.
+- The report, the causes and the proposed fixes are in docs/research/15-combat-findings.md. Research 11–14 hold the
+  agents' scoring, fight and automation-coverage reports.
+- The DataDump tool now prints all 33 bonus columns and decodes the enemy intel (XBMBattleDetailAction).
+- No plugin code has changed yet. The owner is to pick from §5: run settings, target priority, cast audit, beast healing.
+
 ## Next
+0. **Owner decision on research 15 §5.** Then a 0.2.1 with the run settings, at minimum: team cap 3 and shop off. The
+   push and release need fresh approval.
 1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
    - Run tab preflight
    - AutoDuty takes the overrides (AutoDuty log: "Applied 7 override(s)")

@@ -70,6 +70,18 @@ Column 0 is an XBMBattleDetail row. Subrow 0 is the boss battle. For example, bo
 | 5-9 | 1-5 ratings, read as STR, INT, PR, MR, CON | **Unverified** |
 | 10 | XBMElement row (the enemy's attack type) | Inferred |
 
+## XBMBattleDetailAction (the enemy intel; XBMBattleDetail columns 2 and 3 point here)
+
+| Column | Meaning | Status |
+|---|---|---|
+| 0 | Action row (cast time, CastType, EffectRange, XAxisModifier, Omen) | Verified: names and cast times match BossMod's modules |
+| 1 | XBMActionTarget: 1 Self, 2 Ground, 3 Highest Enmity, 4 Random, 5 Player, 6 Allies | Names from the sheet |
+| 2 | XBMActionEffectType: 1 Single Target, 2 Front, 3 Rear, 4 Front/Rear, 5 Lateral, 6 Circle, 7 Ring, 8 Circle/Ring, 9 Universal, 10 Cross | Names from the sheet |
+| 3 | Status inflicted (0 = none) | Verified by examples (Poison, Damage Up, Doom) |
+
+Other Crucible sheets not decoded yet: XBMContentStageEvent(Map), XBMContentRandomStageEvent, XBMRandomStageEvent,
+XBMStageEventType, XBMContentCamp. The duty's text is in `dungeon/000/DungeonXbm_00000`.
+
 ## Small sheets
 
 - **XBMElement:** 1 Fire, 2 Wind, 3 Earth, 4 Lightning, 5 Ice, 6 Water, 7 Blunt, 8 Piercing, 9 Slashing.

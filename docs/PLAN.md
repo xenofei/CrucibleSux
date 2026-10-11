@@ -15,7 +15,7 @@ Status: draft for the owner's approval, 2026-10-11. The research behind this pla
 3. **Combat exists, but it is young.**
    - RotationSolverReborn shipped a Beastmaster rotation on 2026-09-13.
    - BossMod Reborn has a work-in-progress Beastmaster module (`xan/BST.cs`).
-   - **No boss-mechanic modules exist for any Crucible boss.**
+   - ~~No boss-mechanic modules exist for any Crucible boss.~~ Corrected 2026-10-11: both BossMod forks have a module for every Crucible fight, added from 2026-09-16 on ([research 15](research/15-combat-findings.md) §4).
 4. **The client internals are mostly mapped:**
    - The XBM* Excel sheets: beasts, boards, battles, elements, items, score bonuses.
    - `BeastmasterGauge`, `XBMManager` (unlocked beasts), and `AgentXBMPetParty` (team HP and rank).
@@ -28,7 +28,7 @@ Status: draft for the owner's approval, 2026-10-11. The research behind this pla
 
 **"Step away and be 100% confident" is the goal, not a promise.** The plugin will be built to recover, never to wedge, and to tell you exactly what happened. These risks stay:
 
-- **No mechanic modules for the bosses:** Guttler, Lauda the Spellcleaver, Borgny, Toxic Mass and Thanatos. Until we write them, dodging relies on BossMod Reborn's generic AI. The Third and Master's boards will fail more often than a human would.
+- **Mechanic modules are upstream's, and young:** both BossMod forks cover every Crucible fight (research 15 §4), but 4 shapes look wrong against the client data, the original BossMod does not rank the First Board's adds, and AutoDuty still walks the board through AoEs with vnavmesh. The Third and Master's boards will fail more often than a human would.
 - **Capture is RNG** ("non-guaranteed") for rare beasts. Kornago Gourds are the guaranteed fallback, and the plugin will say so.
 - **Upstream breakage:** AutoDuty, RSR and BossMod Reborn change weekly. Every integration goes through a version-checked adapter with a kill switch, like Tsukimichi's HookGate.
 - **Terms of Service:** automation breaks Square Enix's ToS. The plugin runs only solo content, but the account risk is yours.
