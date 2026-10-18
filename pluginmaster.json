@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.7.0",
+    "AssemblyVersion": "0.3.8.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.7/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.7/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.7/latest.zip",
-    "LastUpdate": 1792350059,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.8/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.8/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.8/latest.zip",
+    "LastUpdate": 1792350407,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Fixed\n\n- **A capture that never starts the fight:** in the play-test the character stood next to a ground squirrel for minutes and the game answered \"Cannot execute at this time\", because the auto-attack it sent was refused. If the game refuses the \"attack\" action, the journey now tries the hotbar's Auto-attack, and if that is refused too, it opens with Capture, which is an attack itself.\n  - Each capture step goes into the plugin log: the move, the HP, whether the beast is in reach, and any refusal with the game's code."
+    "Changelog": "Fixed\n\n- **A capture that never starts the fight (the cause):** the journey read the game's auto-attack flag, which FFXIVClientStructs notes no longer holds the state in this patch. It read \"already attacking\", so the journey never sent the attack.\n  - The 0.3.7 log showed the character in reach of the squirrel for 26 s with nothing sent.\n  - The journey now treats combat starting as the sign the fight is on. Until then it sends the attack action twice, then the hotbar's Auto-attack twice, then Capture, about 1.5 s apart, logging each try and what the game returned."
   }
 ]
