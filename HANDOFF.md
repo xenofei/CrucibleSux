@@ -97,6 +97,44 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - what happens when BossMod is in several collections
 - **Tests:** 166.
 
+**Combat tactics, BossMod choice and 7.57 (2026-10-18, branch `combat-tactics`; not merged to main, not released, not tested in game):**
+- **Owner's requests:**
+  - update to the current companion plugin versions
+  - let the pet and the character share aggro, by HP, optimised for the hardest degree and for the highest reachable score
+  - re-enable the original BossMod by asking which one the player uses, and turn the other off for the run
+  - the character never used items
+- **Tester report:** the log pasted was only the 8 s "Outside the boards" log after the board. `/sux report` now prefers the latest board log. The board log itself has not been received yet.
+- **Upstream** (research 17):
+  - Nothing breaks at AutoDuty 0.0.0.389, BossMod Reborn 7.5.7.1, BossMod 7.5.7.0, RSR 7.5.7.3, vnavmesh 1.2.3.14, Lifestream 2.6.0.7 or Dalamud API 15.
+  - `DependencyInfo.TestedVersion` warns when a plugin is older than these.
+  - **Why items were never used:** AutoDuty heals with items from the player's HP only, which barely drops while a familiar covers it. It never heals a familiar, and its campsite rest never rests a familiar (HP/HP bug).
+- **Game 2026.10.06 (7.57):**
+  - The DataDump matches 2026.09.15 except Sleepless Survival (bonus column 21), now 1,000 on every board (it was 375).
+  - The pinned ids are unchanged.
+  - `CrucibleSuxTestedGameVersion` is now 2026.10.06.
+- **Aggro and items** (design: research 16):
+  - Core: `Tactics.cs` (`DamageMeter`, `ScoreOutlook`, `AggroAdvisor`, `HealAdvisor`).
+  - Plugin: `Automation/AggroController.cs`.
+  - Snarl and Challenge share one 15 s cooldown. The handoff is at the projected loss: max(Dtps × 15 s, BigHit) + 10, with 25% before any data. Floors: you 35%, the familiar 15%. A tankbuster cast hands off early.
+  - When neither is safe, the familiar tanks. When both are safe, the cheaper in score tanks.
+  - Potions come from the Crucible director (`InstanceContentCrucibleOfTheUnbroken.Inventory` and `UseItem`, which acts on the current target).
+  - Team HP comes from `AgentXBMPetParty`.
+  - Settings: ShareAggro, PlayerFloor, BeastFloor, UseItems.
+- **BossMod choice:**
+  - `Configuration.MechanicsPlugin` is asked once, in the BossMod window.
+  - `BossModSwitch` turns off either BossMod and reloads the kept one.
+  - `Integrations/BossModIpc.cs` sets `ActionTweaksConfig.PreventMovingWhileCasting=false` through `BossMod.Configuration` right after each `AutoDuty.Start`. AutoDuty restores the player's value when it stops.
+- **Building locally:** the dev Dalamud in `%AppData%\XIVLauncher\addon\Hooks\dev` (2026-09-29) predates the Crucible director in ClientStructs. Set `DALAMUD_HOME` to an extracted `https://goatcorp.github.io/dalamud-distrib/latest.zip`, which is what CI uses.
+- **Tests:** 9 TacticsTests, 11 BossModSwitchTests, 12 DependencyTests and 15 PreflightTests pass. The full suite was not run.
+- **Unverified in game:**
+  - that Snarl and Challenge fire through `ActionManager`
+  - that Covered 2413 is the status the Crucible uses
+  - that a potion lands on the target set just before `UseItem`
+  - that `AgentXBMPetParty`'s HP arrays are filled in battle
+  - `BossMod.Configuration` against the original BossMod
+  - the reverse switch (BossMod Reborn off, the original reloaded)
+  - status 2552 being the only RSR Snarl mechanic
+
 ## Next
 0. **v0.2.1 is out** (owner approved "bump and push"): tag v0.2.1 on 6bfb12f; CI and Release passed; latest.zip and SHA256SUMS.txt are attached; pluginmaster.json for v0.2.1 is on main (1b48089). Next: ask Maple to replay the First Board and send `/sux report` (and the full log if a hit or KO shows). Any later push or release needs fresh approval.
 1. **Play-test** on a character with Beastmaster (the owner will arrange a tester). Run the First Board once, attended. Check:
