@@ -1177,6 +1177,20 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 this.game.UseGeneral(GameActions.Dismount);
             return false;
         }
+        // While an enemy area is being cast, the way in keeps out of it: a clear spot in reach, else wait outside.
+        if (this.dodger.Active)
+        {
+            if (this.dodger.SafeApproach(target) is not { } way)
+            {
+                if (this.nav.IsBusy)
+                    this.nav.Stop();
+                return false;
+            }
+            var safe = this.nav.IsBusy ? this.nav.Waypoints : [];
+            if (!(safe.Count > 0 && Vector3.Distance(safe[^1], way) <= AoeDodge.Clearance) && !this.nav.Pathfinding)
+                this.nav.MoveTo(way);
+            return false;
+        }
         // A new path starts where the character stood when it was asked for, which it has passed by the time the path
         // arrives; asking again while the path still leads to the target turns the character back and forth, most of all at
         // the game's low background frame rate. So a path is kept while it still ends near the target.

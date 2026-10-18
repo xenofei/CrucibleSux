@@ -4,27 +4,28 @@ using CrucibleSux.Core;
 using CrucibleSux.Integrations;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Plugin.Services;
-using Lumina.Excel;
-using ClientBattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 
 namespace CrucibleSux.Automation;
 
 /// <summary>
-/// Steps out of enemy area attacks during the journey (<see cref="AoeDodge"/>): reads each cast's area from its Action
-/// row, as the combat recorder does, and walks to the nearest reachable spot clear of every one until they go off. Boards
-/// are left to BossMod's AI.
+/// Steps out of enemy area attacks during the journey (<see cref="AoeDodge"/>): every hostile cast with an area, from any
+/// enemy, placed by <see cref="CastAreas"/>; it walks to the nearest reachable spot clear of every one, keeping its target
+/// in reach where it can, until they go off. Boards are left to BossMod's AI.
 /// </summary>
-public sealed unsafe class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIpc nav, GameActions game)
+public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIpc nav, GameActions game)
 {
-    private const float Range = 40f;
+    private const float Range = 50f;
 
     /// <summary>A cast about to go off is no longer worth stepping for.</summary>
     private const float TooLate = 0.2f;
 
     private const int SpotsTried = 8;
 
-    private readonly ExcelSheet<Lumina.Excel.Sheets.Action> actions = data.GetExcelSheet<Lumina.Excel.Sheets.Action>();
-    private readonly Dictionary<uint, (string Name, AoeShape Shape)> cache = [];
+    /// <summary>The game's melee reach from the target's hitbox, less a margin, as the chase uses it.</summary>
+    private const float Reach = 3f - 0.5f;
+
+    private readonly CastAreas areas = new(data, objects);
+    private readonly List<AoeThreat> threats = [];
     private Vector3? spot;
 
     /// <summary>The cast being stepped out of, or null.</summary>
@@ -33,47 +34,39 @@ public sealed unsafe class AoeDodger(IObjectTable objects, IDataManager data, Na
     /// <summary>True while it moves the character out of an area; the caller does nothing else meanwhile.</summary>
     public bool Tick()
     {
+        this.threats.Clear();
         if (game.Me is not IBattleChara me || game.InFlight)
             return this.Clear();
-        var threats = new List<AoeThreat>();
         string? name = null;
         foreach (var o in objects)
         {
             if (o is not IBattleNpc npc || !GameActions.IsHostile(npc) || !npc.IsCasting || npc.TotalCastTime - npc.CurrentCastTime < TooLate
-                || Vector3.Distance(npc.Position, me.Position) > Range)
+                || Vector3.Distance(npc.Position, me.Position) > Range || this.areas.Read(npc) is not { } threat)
                 continue;
-            var ci = ((ClientBattleChara*)npc.Address)->GetCastInfo();
-            if (ci == null)
-                continue;
-            var (action, shape) = this.Info(npc.CastActionId);
-            if (shape.Kind == AoeKind.None)
-                continue;
-            // Ground and target circles sit where the cast aims; the rest start at the caster and reach past its hitbox.
-            Vector3 aim = ci->TargetLocation;
-            bool atAim = shape.Kind is AoeKind.Circle or AoeKind.Donut && aim != Vector3.Zero;
-            if (!atAim)
-                shape = shape with { Range = shape.Range + npc.HitboxRadius };
-            threats.Add(new(shape, atAim ? Flat(aim) : Flat(npc.Position), shape.Kind is AoeKind.Circle or AoeKind.Donut ? npc.Rotation : ci->Rotation));
-            name ??= action;
+            this.threats.Add(threat);
+            name ??= this.areas.Info(npc.CastActionId).Name;
         }
 
-        if (!AoeDodge.InDanger(threats, Flat(me.Position)))
+        if (!AoeDodge.InDanger(this.threats, Flat(me.Position)))
             return this.Clear();
         this.Dodging = name;
         // Keep heading for the spot already chosen while it stays clear.
-        if (this.spot is { } chosen && !AoeDodge.InDanger(threats, Flat(chosen)))
+        if (this.spot is { } chosen && !AoeDodge.InDanger(this.threats, Flat(chosen)))
         {
             if (!nav.IsBusy)
                 nav.MoveTo(chosen);
             return true;
         }
         this.spot = null;
+        // A melee character steps aside rather than away: spots that keep the target in reach come first.
+        var target = me.TargetObject as IBattleNpc;
+        var near = target is null ? (Vector2?)null : Flat(target.Position);
         int tried = 0;
-        foreach (var p in AoeDodge.SafeSpots(threats, Flat(me.Position)))
+        foreach (var p in AoeDodge.SafeSpots(this.threats, Flat(me.Position), near, target is null ? 0 : Reach + target.HitboxRadius))
         {
             if (++tried > SpotsTried)
                 break;
-            if (nav.Reachable(new Vector3(p.X, me.Position.Y, p.Y)) is { } r && Vector2.Distance(Flat(r), p) < AoeDodge.Clearance && !AoeDodge.InDanger(threats, Flat(r)))
+            if (this.Reachable(p, me.Position.Y) is { } r)
             {
                 this.spot = r;
                 break;
@@ -88,22 +81,39 @@ public sealed unsafe class AoeDodger(IObjectTable objects, IDataManager data, Na
         return true;
     }
 
+    /// <summary>True while an enemy area is being cast near the character (as of the last <see cref="Tick"/>).</summary>
+    public bool Active => this.threats.Count > 0;
+
+    /// <summary>
+    /// Where to stand to fight <paramref name="target"/> without walking into an area being cast: a reachable point in melee
+    /// reach of it that no cast covers, nearest first. Null when none is clear; the caller then waits outside.
+    /// </summary>
+    public Vector3? SafeApproach(IGameObject target)
+    {
+        if (game.Me is not { } me)
+            return null;
+        int tried = 0;
+        foreach (var p in AoeDodge.Approach(this.threats, Flat(me.Position), Flat(target.Position), Reach + target.HitboxRadius))
+        {
+            if (++tried > SpotsTried)
+                break;
+            if (this.Reachable(p, target.Position.Y) is { } r)
+                return r;
+        }
+        return null;
+    }
+
+    /// <summary>The walkable point a path reaches at <paramref name="p"/>, when it is still clear of every area.</summary>
+    private Vector3? Reachable(Vector2 p, float y) =>
+        nav.Reachable(new Vector3(p.X, y, p.Y)) is { } r && Vector2.Distance(Flat(r), p) < AoeDodge.Clearance && !AoeDodge.InDanger(this.threats, Flat(r))
+            ? r
+            : null;
+
     private bool Clear()
     {
         this.spot = null;
         this.Dodging = null;
         return false;
-    }
-
-    private (string Name, AoeShape Shape) Info(uint id)
-    {
-        if (this.cache.TryGetValue(id, out var info))
-            return info;
-        info = this.actions.GetRowOrDefault(id) is { } a
-            ? (a.Name.ExtractText(), AoeShape.FromAction(a.CastType, a.EffectRange, a.XAxisModifier, a.Omen.ValueNullable?.Path.ExtractText()))
-            : ($"action {id}", default);
-        this.cache[id] = info;
-        return info;
     }
 
     private static Vector2 Flat(Vector3 v) => new(v.X, v.Z);

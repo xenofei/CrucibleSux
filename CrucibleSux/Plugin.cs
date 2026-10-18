@@ -75,11 +75,12 @@ public sealed class Plugin : IDalamudPlugin
             ClientState, Condition, ObjectTable, GameGui, PlayerState, ChatGui, NotificationManager);
         var game = new GameActions(ObjectTable, Condition, GameGui, PlayerState);
         var nav = new NavmeshIpc(PluginInterface, Log);
+        var rotation = new RotationSolverIpc(PluginInterface, Log, text => this.recorder!.Note(LogKind.Info, text));
         this.journey = new ProgressionRunner(new ProgressionReader(PlayerState, DataManager), game, new Travel(game, nav, ClientState, DataManager),
-            new Dialogue(game), nav, new RotationSolverIpc(PluginInterface, Log), this.runner, this.config, PluginInterface, ClientState, FateTable,
+            new Dialogue(game), nav, rotation, this.runner, this.config, PluginInterface, ClientState, FateTable,
             ObjectTable, DataManager, ChatGui, NotificationManager);
         this.recorder = new CombatRecorder(this.config, data, PluginInterface, ClientState, Condition, ObjectTable, TargetManager, ChatGui, AddonLifecycle,
-            DataManager, Log, this.autoDuty, nav, () => this.runner.Current is not null || this.journey.Running, this.LogHeader);
+            DataManager, Log, this.autoDuty, nav, rotation, () => this.runner.Current is not null || this.journey.Running, this.LogHeader);
         this.picker = new TargetPicker(this.config, data.TargetPriorities, ClientState, Condition, ObjectTable, TargetManager, this.recorder);
         this.aggro = new AggroController(this.config, data, ClientState, Condition, ObjectTable, TargetManager, game, this.recorder);
         this.bossMod = new BossModGate(PluginInterface, CommandManager, ChatGui, Log, this.config, this.Save);
@@ -265,6 +266,8 @@ public sealed class Plugin : IDalamudPlugin
     {
         if (BackgroundFpsLimited())
             ChatGui.Print("[Crucible SUX] The game limits its frame rate when it is not focused, so the character can turn back and forth then. To avoid it, untick System Configuration > Display Settings > \"Limit frame rate when client is inactive\".");
+        if (Preflight.WrathLoaded(this.session.Dependencies) && DependencyCatalog.RotationEngine(this.session.Dependencies)?.InternalName == "RotationSolver")
+            ChatGui.PrintError("[Crucible SUX] Wrath Combo is loaded beside Rotation Solver Reborn, which lists it as breaking its rotations: the character may use no skills. Turn Wrath Combo off in /xlplugins while the journey runs.");
         if (this.journey.Running)
         {
             ChatGui.Print("[Crucible SUX] The journey is already running.");

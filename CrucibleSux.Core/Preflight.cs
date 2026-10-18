@@ -82,8 +82,16 @@ public static class Preflight
         null => new("rotation", "Rotation", CheckStatus.Fail, "No rotation plugin loaded", "Install Rotation Solver Reborn: it has a Beastmaster rotation."),
         { InternalName: "WrathCombo" } => new("rotation", "Rotation", CheckStatus.Fail, "Only Wrath Combo is loaded, and it has no Beastmaster rotation",
             "Install Rotation Solver Reborn, or enable BossMod Reborn's Beastmaster module."),
+        { InternalName: "RotationSolver" } when WrathLoaded(roles) => new("rotation", "Rotation", CheckStatus.Warn,
+            "Wrath Combo is loaded beside Rotation Solver Reborn, which lists it as breaking its rotations (the character may use no skills)",
+            "Turn Wrath Combo off in /xlplugins while Crucible SUX runs."),
         var engine => new("rotation", "Rotation", CheckStatus.Pass, $"{engine.DisplayName} fights; AutoDuty switches it on in the board"),
     };
+
+    /// <summary>Wrath Combo is loaded (as a rotation candidate that passes or warns).</summary>
+    public static bool WrathLoaded(IEnumerable<RoleStatus> roles) =>
+        roles.Where(r => r.Role == DependencyRole.Rotation).SelectMany(r => r.Candidates)
+            .Any(c => c.Info.InternalName == "WrathCombo" && c.Installed is { IsLoaded: true });
 
     private static ReadinessCheck Board(BoardReadiness r)
     {

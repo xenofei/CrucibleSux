@@ -1,5 +1,25 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Dodging every enemy's area attacks, not one kind:**
+  - Cones, lines and crosses now face where the caster faces. The cast's own direction reads 0° in this patch, so every frontal attack was placed facing north.
+  - Each area is placed by its cast type, the same way for every enemy:
+    - circles on a target or the ground sit where they aim
+    - a circle around the caster reaches past its hitbox
+    - a charge runs from the caster to where it aims
+    - cones, lines and crosses start at the caster
+  - The combat log places areas exactly as the dodger does.
+- **Walking back into an attack:** after stepping out, the chase walked straight back into the same cone. While an enemy area is being cast, the chase now goes to a spot in reach that no area covers, or waits outside until it goes off. When stepping out, spots that keep the target in melee reach come first.
+- **Rotation Solver Reborn switched off mid-journey:** Crucible SUX now reads whether RSR is really on (its AutorotationActive IPC). If RSR reports off for more than 2 s after being asked to fight, the mode is sent again.
+
+### Added
+
+- **Rotation Solver Reborn in the log:** every mode sent to RSR, and every change in whether it is on, now goes into the combat log, so a fight with no skills used shows why.
+- **Wrath Combo warning:** Rotation Solver Reborn lists Wrath Combo as breaking its rotations. When both are loaded, the Readiness check and the journey's start now warn that the character may use no skills, and say to turn Wrath Combo off while Crucible SUX runs.
+
 ## [0.3.22] - 2026-10-18
 
 ### Changed

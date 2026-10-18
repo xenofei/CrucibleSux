@@ -17,7 +17,6 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
-using ClientBattleChara = FFXIVClientStructs.FFXIV.Client.Game.Character.BattleChara;
 using TerritoryType = Lumina.Excel.Sheets.TerritoryType;
 
 namespace CrucibleSux.Diagnostics;
@@ -56,13 +55,13 @@ public sealed unsafe class CombatRecorder : IDisposable
     private readonly IPluginLog log;
     private readonly AutoDutyIpc autoDuty;
     private readonly NavmeshIpc nav;
+    private readonly RotationSolverIpc rotation;
     private readonly Func<bool> automationRunning;
     private readonly Func<string, IReadOnlyList<string>> header;
-    private readonly ExcelSheet<Lumina.Excel.Sheets.Action> actions;
+    private readonly CastAreas areas;
     private readonly ExcelSheet<TerritoryType> territories;
     private readonly IReadOnlyDictionary<uint, EnemyAbility> intel;
     private readonly IReadOnlyDictionary<uint, int> priorities;
-    private readonly Dictionary<uint, (string Name, AoeShape Shape)> actionCache = [];
     private readonly List<CombatLog> finished = [];
 
     private readonly Dictionary<ulong, Cast> casts = [];
@@ -89,6 +88,7 @@ public sealed unsafe class CombatRecorder : IDisposable
     private bool navBusy;
     private Vector3? navEnd;
     private bool? dutyRunning;
+    private bool? rsrActive;
 
     public CombatRecorder(
         Configuration config,
@@ -104,6 +104,7 @@ public sealed unsafe class CombatRecorder : IDisposable
         IPluginLog log,
         AutoDutyIpc autoDuty,
         NavmeshIpc nav,
+        RotationSolverIpc rotation,
         Func<bool> automationRunning,
         Func<string, IReadOnlyList<string>> header)
     {
@@ -118,9 +119,10 @@ public sealed unsafe class CombatRecorder : IDisposable
         this.log = log;
         this.autoDuty = autoDuty;
         this.nav = nav;
+        this.rotation = rotation;
         this.automationRunning = automationRunning;
         this.header = header;
-        this.actions = dataManager.GetExcelSheet<Lumina.Excel.Sheets.Action>();
+        this.areas = new CastAreas(dataManager, objects);
         this.territories = dataManager.GetExcelSheet<TerritoryType>();
         this.intel = data.Battles.Values.SelectMany(b => b).SelectMany(b => b.Enemies).SelectMany(e => e.Abilities)
             .DistinctBy(a => a.ActionId).ToDictionary(a => a.ActionId);
@@ -207,6 +209,7 @@ public sealed unsafe class CombatRecorder : IDisposable
         this.moving = this.inside = this.navBusy = false;
         this.navEnd = null;
         this.dutyRunning = null;
+        this.rsrActive = null;
         this.nextNav = this.nextAutoDuty = now;
         log.Add(now, LogKind.Move, $"Start at {P(me.Position)}");
         return log;
@@ -283,6 +286,13 @@ public sealed unsafe class CombatRecorder : IDisposable
         if (now >= this.nextAutoDuty)
         {
             this.nextAutoDuty = now + AutoDutyEvery;
+            // Whether RSR is really on: a fight with no skills used shows here whether it was told and stayed on.
+            bool? rsr = this.rotation.Active();
+            if (rsr != this.rsrActive)
+            {
+                this.rsrActive = rsr;
+                log.Add(now, LogKind.Info, rsr switch { true => "Rotation Solver Reborn is on", false => "Rotation Solver Reborn is off", _ => "Rotation Solver Reborn does not answer" });
+            }
             bool? running = this.autoDuty.IsRunning();
             if (running != this.dutyRunning)
             {
@@ -302,10 +312,6 @@ public sealed unsafe class CombatRecorder : IDisposable
             if (!npc.IsCasting)
                 continue;
             seen.Add(npc.GameObjectId);
-            var ci = ((ClientBattleChara*)npc.Address)->GetCastInfo();
-            if (ci == null)
-                continue;
-
             if (this.casts.TryGetValue(npc.GameObjectId, out var cast) && cast.ActionId != npc.CastActionId)
             {
                 this.EndCast(now, log, me, cast, cutShort: cast.Progress < cast.Total - 0.3f);
@@ -313,7 +319,7 @@ public sealed unsafe class CombatRecorder : IDisposable
             }
             if (cast is null)
             {
-                var (name, shape) = this.ActionInfo(npc.CastActionId);
+                var (name, shape) = this.areas.Info(npc.CastActionId);
                 cast = new Cast
                 {
                     ActionId = npc.CastActionId,
@@ -326,10 +332,11 @@ public sealed unsafe class CombatRecorder : IDisposable
                 this.casts[npc.GameObjectId] = cast;
             }
 
-            // Ground and target circles sit where the cast aims; cones, rects and crosses start at the caster.
-            Vector3 aim = ci->TargetLocation;
-            cast.Origin = cast.Shape.Kind is AoeKind.Circle or AoeKind.Donut && aim != Vector3.Zero ? Flat(aim) : Flat(npc.Position);
-            cast.Rotation = cast.Shape.Kind is AoeKind.Circle or AoeKind.Donut ? npc.Rotation : ci->Rotation;
+            // Placed as the dodger places it (CastAreas), so the log shows what the dodger sees.
+            var area = this.areas.Read(npc);
+            cast.Shape = area?.Shape ?? cast.Shape;
+            cast.Origin = area?.Origin ?? Flat(npc.Position);
+            cast.Rotation = area?.Rotation ?? npc.Rotation;
             cast.Progress = npc.CurrentCastTime;
             cast.Margin = cast.Shape.Margin(cast.Origin, cast.Rotation, myPos);
 
@@ -545,17 +552,6 @@ public sealed unsafe class CombatRecorder : IDisposable
         log.Add(now, LogKind.Nav, Inv($"vnavmesh path to {P(end)}: {points.Count} waypoints, {length:0.0} y; the end is {verdict}"), important: danger.Count > 0);
     }
 
-    private (string Name, AoeShape Shape) ActionInfo(uint id)
-    {
-        if (this.actionCache.TryGetValue(id, out var info))
-            return info;
-        info = this.actions.GetRowOrDefault(id) is { } a
-            ? (a.Name.ExtractText(), AoeShape.FromAction(a.CastType, a.EffectRange, a.XAxisModifier, a.Omen.ValueNullable?.Path.ExtractText()))
-            : ($"Action {id}", default);
-        this.actionCache[id] = info;
-        return info;
-    }
-
     private void OnWindowOpen(AddonEvent type, AddonArgs args)
     {
         string name = args.AddonName;
@@ -626,7 +622,7 @@ public sealed unsafe class CombatRecorder : IDisposable
 
         public string Action { get; init; } = string.Empty;
 
-        public AoeShape Shape { get; init; }
+        public AoeShape Shape { get; set; }
 
         public float Total { get; init; }
 
