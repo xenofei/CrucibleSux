@@ -25,6 +25,7 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
 {
     public const uint MountRoulette = 9;
     public const uint Sprint = 4;
+    public const uint FlyingMountRoulette = 24;
     public const uint Dismount = 23;
     public const uint Capture = 44880;
     public const uint TemperedRelease = 44890;
@@ -83,10 +84,13 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
         return result is > 0 and not 7;
     }
 
-    public bool CanUse(uint action, ulong target = 0xE0000000)
+    public bool CanUse(uint action, ulong target = 0xE0000000) => this.ActionStatus(action, target) == 0;
+
+    /// <summary>0 when the game would accept <paramref name="action"/> on <paramref name="target"/> now, else its refusal (a LogMessage row).</summary>
+    public uint ActionStatus(uint action, ulong target = 0xE0000000)
     {
         var am = ActionManager.Instance();
-        return am != null && am->GetActionStatus(ActionType.Action, action, target) == 0;
+        return am == null ? uint.MaxValue : am->GetActionStatus(ActionType.Action, action, target);
     }
 
     public bool OffCooldown(uint action)

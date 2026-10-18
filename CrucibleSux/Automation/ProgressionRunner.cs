@@ -124,6 +124,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private DateTime? fleeingSince;
     private Vector3? fleeTo;
     private bool wasDead;
+    private (uint Status, uint Action) lastRefusal;
 
     public ProgressionRunner(
         ProgressionReader reader,
@@ -1106,18 +1107,33 @@ public sealed unsafe class ProgressionRunner : IDisposable
         {
             case CaptureMove.Weaken:
                 this.rotation.Release();
-                if (!this.game.IsAutoAttacking && this.Ready(now, 1))
+                if (!this.game.IsAutoAttacking && this.Ready(now, 1) && this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
                     this.game.StartAutoAttack(target);
                 break;
             case CaptureMove.Capture:
                 this.rotation.Release();
-                if (this.Ready(now, 1))
+                if (this.Ready(now, 1) && this.Accepts(GameActions.Capture, target, "Capture"))
                     this.game.UseAction(GameActions.Capture, target.GameObjectId);
                 break;
             default:
                 this.rotation.Set(Mode.Manual);
                 break;
         }
+    }
+
+    /// <summary>
+    /// Whether the game would take <paramref name="action"/> on <paramref name="target"/> now. A refusal is not sent (each
+    /// one shows "cannot execute" in chat); its code goes into the plugin log and the status line once per change.
+    /// </summary>
+    private bool Accepts(uint action, IGameObject target, string what)
+    {
+        uint status = this.game.ActionStatus(action, target.GameObjectId);
+        if (status != 0 && (status, action) != this.lastRefusal)
+            Plugin.Log.Warning($"Journey: the game refuses {what} on {target.Name.TextValue} (status {status})");
+        this.lastRefusal = status == 0 ? default : (status, action);
+        if (status != 0)
+            this.Say($"The game refuses {what} on the {target.Name.TextValue} for now (status {status}).");
+        return status == 0;
     }
 
     /// <summary>The wild form of <paramref name="src"/> to go after: the one already engaged, else the nearest free one.</summary>

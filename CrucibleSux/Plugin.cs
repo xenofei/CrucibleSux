@@ -42,6 +42,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static INotificationManager NotificationManager { get; private set; } = null!;
     [PluginService] internal static IFateTable FateTable { get; private set; } = null!;
     [PluginService] internal static ITargetManager TargetManager { get; private set; } = null!;
+    [PluginService] internal static IGameConfig GameConfig { get; private set; } = null!;
 
     private readonly Configuration config;
     private readonly WindowSystem windowSystem = new("CrucibleSux");
@@ -85,7 +86,7 @@ public sealed class Plugin : IDalamudPlugin
         this.bossModPrompt = new BossModPrompt(this.bossMod);
         var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save, this.StartSession);
         this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs,
-            new JourneyTab(this.journey, this.config, this.Save, () => this.StartJourney(), this.StartJourney), new LogTab(this.recorder, this.config, this.Save), this.Save);
+            new JourneyTab(this.journey, this.config, this.Save, () => this.StartJourney(), this.StartJourney, BackgroundFpsLimited), new LogTab(this.recorder, this.config, this.Save), this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
         this.windowSystem.AddWindow(this.bossModPrompt);
         this.unlockPrompt = new UnlockPrompt(this.journey, this.config, this.Save, this.StartJourney);
@@ -253,9 +254,17 @@ public sealed class Plugin : IDalamudPlugin
             ChatGui.PrintError($"[Crucible SUX] {check.Label}: {check.Detail}");
     }
 
+    /// <summary>
+    /// The game's "limit frame rate when inactive" is on. vnavmesh steers once per frame, so at the low background frame
+    /// rate the character overshoots waypoints and turns back and forth while the game is not focused.
+    /// </summary>
+    private static bool BackgroundFpsLimited() => GameConfig.System.TryGet("FPSInActive", out uint limited) && limited != 0;
+
     /// <param name="goal">Unlock Beastmaster, or go on to the Crucible, whatever the journey's parts say; the parts by default.</param>
     private void StartJourney(JourneyGoal goal = JourneyGoal.Parts)
     {
+        if (BackgroundFpsLimited())
+            ChatGui.Print("[Crucible SUX] The game limits its frame rate when it is not focused, so the character can turn back and forth then. To avoid it, untick System Configuration > Display Settings > \"Limit frame rate when client is inactive\".");
         if (this.journey.Running)
         {
             ChatGui.Print("[Crucible SUX] The journey is already running.");

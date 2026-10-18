@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Travel flies and teleports more:**
+  - Where this character can fly (A Realm Reborn's zones after its main scenario), it summons a flying mount and flies.
+  - A trip of more than 400 y in the same zone teleports to an attuned aetheryte when that saves 300 y or more. A character already mounted rides on instead.
+
+### Fixed
+
+- **Capture spam:** Capture and auto-attack are now sent only when the game would accept them, so a refusal no longer fills the chat with "cannot execute". The game's refusal code goes into the status line and the plugin log, to show why.
+- **Turning back and forth while alt-tabbed:** the game's "limit frame rate when client is inactive" makes vnavmesh overshoot and turn back while the game is not focused. The Journey tab and the journey's start now say so, and say how to turn it off. Your settings are not changed.
+
 ## [0.3.5] - 2026-10-18
 
 ### Fixed

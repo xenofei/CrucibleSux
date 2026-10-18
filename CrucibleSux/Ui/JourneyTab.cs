@@ -10,7 +10,8 @@ namespace CrucibleSux.Ui;
 /// <summary>The Journey tab: the three opt-in parts of the Beastmaster journey, start and stop, and what it is doing.</summary>
 /// <param name="start">Starts the journey, turning the BossMod the player does not use off first when needed.</param>
 /// <param name="startGoal">Starts it for a goal whatever the parts say: unlock the job, or go on to the Crucible.</param>
-public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save, Action start, Action<JourneyGoal> startGoal)
+/// <param name="backgroundFpsLimited">The game's "limit frame rate when inactive" is on, which makes vnavmesh wander when not focused.</param>
+public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save, Action start, Action<JourneyGoal> startGoal, Func<bool> backgroundFpsLimited)
 {
     private static readonly TimeSpan PreviewEvery = TimeSpan.FromSeconds(1);
     private DateTime nextPreview;
@@ -97,6 +98,8 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
         ImGui.TextDisabled("Unattended automation is against the game's terms of service.");
         ImGui.Spacing();
         ImGui.TextDisabled("Needs vnavmesh and Rotation Solver Reborn; boards also need AutoDuty (see the Plugins tab).");
+        if (backgroundFpsLimited())
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "The game limits its frame rate when not focused, so the character can turn back and forth while you alt-tab. Untick System Configuration > Display Settings > \"Limit frame rate when client is inactive\".");
         ImGui.TextDisabled("You will be asked to put beasts on Battlehorns yourself: the plugin cannot do that yet.");
     }
 

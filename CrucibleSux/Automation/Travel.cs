@@ -17,14 +17,19 @@ public enum TravelState
 }
 
 /// <summary>
-/// Gets the player to a place: teleports to the attuned aetheryte nearest the destination when it is in another zone,
-/// mounts for long trips, and walks the last stretch with vnavmesh. Call <see cref="Tick"/> every frame until it stops
-/// returning <see cref="TravelState.Moving"/>.
+/// Gets the player to a place: teleports to the attuned aetheryte nearest the destination when it is in another zone, or
+/// in this zone when that saves a long trip; mounts for long trips (a flying mount, and flies, where this character can
+/// fly); and goes the last stretch with vnavmesh. Call <see cref="Tick"/> every frame until it stops returning
+/// <see cref="TravelState.Moving"/>.
 /// </summary>
 public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState client, IDataManager data)
 {
     private const float MountBeyond = 40f;
     private const float RepathBeyond = 5f;
+
+    /// <summary>A trip in this zone longer than this teleports when an aetheryte saves <see cref="TeleportSaves"/> of it.</summary>
+    private const float TeleportWithinBeyond = 400f;
+    private const float TeleportSaves = 300f;
     private static readonly TimeSpan RetryEvery = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan TeleportTimeout = TimeSpan.FromSeconds(40);
 
@@ -80,6 +85,9 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
                 nav.Stop();
             return TravelState.Arrived;
         }
+        // On foot only: a mounted character stays mounted and rides on.
+        if (!game.Mounted && distance > TeleportWithinBeyond && this.Aetheryte(territory, d) is { } near && near.Distance + TeleportSaves < distance)
+            return this.Teleport(territory, d, now);
 
         if (nav.IsBusy || now < this.nextTry)
             return TravelState.Moving;
@@ -87,9 +95,10 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         if (!nav.IsReady)
             return TravelState.Moving;
 
+        bool fly = this.CanFlyHere();
         if (mount && !game.Mounted && !game.InCombat && distance > MountBeyond && this.CanMountHere())
         {
-            game.UseGeneral(GameActions.MountRoulette);
+            game.UseGeneral(fly ? GameActions.FlyingMountRoulette : GameActions.MountRoulette);
             return TravelState.Moving;
         }
         if (!mount && game.Mounted)
@@ -97,7 +106,7 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             game.UseGeneral(GameActions.Dismount);
             return TravelState.Moving;
         }
-        if (!nav.MoveTo(d))
+        if (!nav.MoveTo(d, fly: fly && game.Mounted))
             Plugin.Log.Debug($"vnavmesh refused a path to {d}");
         return TravelState.Moving;
     }
@@ -114,7 +123,7 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             return TravelState.Moving;
         this.nextTry = now + RetryEvery;
 
-        if (this.Aetheryte(territory, point) is not { } aetheryte)
+        if (this.Aetheryte(territory, point) is not { Id: var aetheryte })
         {
             string zone = data.GetExcelSheet<TerritoryType>().GetRowOrDefault(territory)?.PlaceName.ValueNullable?.Name.ExtractText() ?? territory.ToString();
             return this.Fail($"No attuned aetheryte in {zone}. Attune one there, then start again.");
@@ -124,14 +133,16 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             game.UseGeneral(GameActions.Dismount);
             return TravelState.Moving;
         }
+        if (nav.IsBusy)
+            nav.Stop();
         var telepo = Telepo.Instance();
         if (telepo != null && telepo->Teleport(aetheryte, 0))
             this.teleportedAt = now;
         return TravelState.Moving;
     }
 
-    /// <summary>The attuned aetheryte in <paramref name="territory"/> nearest <paramref name="point"/>.</summary>
-    private uint? Aetheryte(uint territory, Vector3 point)
+    /// <summary>The attuned aetheryte in <paramref name="territory"/> nearest <paramref name="point"/>, and how far from it it is.</summary>
+    private (uint Id, float Distance)? Aetheryte(uint territory, Vector3 point)
     {
         var telepo = Telepo.Instance();
         if (telepo == null)
@@ -144,15 +155,22 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         var sheet = data.GetExcelSheet<Aetheryte>();
         var levels = data.GetExcelSheet<Level>();
         return attuned
-            .Select(id => (id, row: sheet.GetRowOrDefault(id)))
-            .OrderBy(a => a.row?.Level[0].RowId is { } l and > 0 && levels.GetRowOrDefault(l) is { } lv
+            .Select(id => (Id: id, Distance: sheet.GetRowOrDefault(id)?.Level[0].RowId is { } l and > 0 && levels.GetRowOrDefault(l) is { } lv
                 ? Flat(new Vector3(lv.X, lv.Y, lv.Z), point)
-                : float.MaxValue)
-            .Select(a => a.id)
+                : float.MaxValue))
+            .OrderBy(a => a.Distance)
             .First();
     }
 
     private bool CanMountHere() => data.GetExcelSheet<TerritoryType>().GetRowOrDefault(client.TerritoryType)?.Mount == true;
+
+    /// <summary>This character can fly in this zone: its aether currents (for A Realm Reborn's zones, the main scenario) are done.</summary>
+    private bool CanFlyHere()
+    {
+        uint set = data.GetExcelSheet<TerritoryType>().GetRowOrDefault(client.TerritoryType)?.AetherCurrentCompFlgSet.RowId ?? 0;
+        var ps = PlayerState.Instance();
+        return set != 0 && ps != null && ps->IsAetherCurrentZoneComplete(set);
+    }
 
     private static float Flat(Vector3 a, Vector3 b) => Vector2.Distance(new(a.X, a.Z), new(b.X, b.Z));
 
