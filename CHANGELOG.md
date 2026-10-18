@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Standing still while being hit:** when mobs attacked first (a Bog Yarzon and a Stagnant Water Sprite in the play-test), levelling left the fight to Rotation Solver Reborn. RSR neither moves the character nor starts its auto-attack, so the character stood there losing HP until the flee kicked in.
+  - A fight already under way now goes through the full fight-back: flee when it is not worth taking, else target the attacker, walk to it and turn auto-attack on, with the rotation adding its skills.
+  - Auto-attack is turned on with the hotbar toggle only while it is off, read the way BossMod reads it, so it is never switched off by mistake. This applies when fighting back, to mobs fought while levelling, to captures and to the dummy steps.
+
 ## [0.3.14] - 2026-10-18
 
 ### Fixed

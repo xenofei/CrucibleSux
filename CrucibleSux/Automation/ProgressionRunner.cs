@@ -822,8 +822,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (this.game.UseAction(action, dummy.GameObjectId))
             return true;
         // The hotbar's Auto-attack: the "attack" action is refused in this patch.
-        if (!this.game.InCombat)
-            this.game.UseGeneral(GameActions.AutoAttackGeneral);
+        this.game.EnsureAutoAttack(dummy);
         return false;
     }
 
@@ -924,7 +923,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (attackers.FirstOrDefault() is { } attacker)
         {
             this.game.Target(attacker);
-            this.Chase(now, attacker);
+            if (this.Chase(now, attacker))
+                this.game.EnsureAutoAttack(attacker);
             this.Say($"Fighting off {attacker.Name.TextValue}.");
         }
         else
@@ -1158,10 +1158,12 @@ public sealed unsafe class ProgressionRunner : IDisposable
         {
             case CaptureMove.Weaken:
                 this.rotation.Release();
-                // Once the beast fights back, auto-attack is running: the game's own flag for it cannot be read.
+                // In the fight: keep the swings on (a beast that pulled the character first leaves them off).
                 if (this.game.InCombat)
                 {
                     this.attackTries = 0;
+                    if (this.Ready(now, 1.5))
+                        this.game.EnsureAutoAttack(target);
                     break;
                 }
                 if (!this.Ready(now, 1.5))
@@ -1170,6 +1172,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 // then the attack action twice, then Capture, an attack too.
                 this.attackTries++;
                 string sent;
+                if (this.attackTries <= 2 && this.game.IsAutoAttacking)
+                    break;
                 if (this.attackTries <= 2)
                     sent = $"the hotbar Auto-attack: {this.game.UseGeneral(GameActions.AutoAttackGeneral)}";
                 else if (this.attackTries <= 4 && this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
@@ -1458,8 +1462,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.fate = 0;
         if (this.game.InCombat)
         {
-            // A fight in progress: the rotation finishes it; one that is not worth taking is fled.
-            if (this.FleeIfThreatened(now, inFate: false))
+            // A fight in progress: fled when not worth taking, else fought (target, walk over, auto-attack, the rotation).
+            if (this.FightBack(now))
                 return;
             this.rotation.Set(Mode.Auto, targetFreely: true);
             this.Say("Finishing the fight.");
@@ -1526,11 +1530,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.Say($"No FATE to join yet: fighting a {mob.Name.TextValue} (level {mob.Level}) meanwhile.");
         if (!this.Chase(now, mob))
             return true;
-        this.game.Target(mob);
         this.rotation.Set(Mode.Manual);
         // The hotbar's Auto-attack starts the fight (the "attack" action is refused in this patch); the rotation follows.
         if (this.Ready(now, 1.5))
-            this.game.UseGeneral(GameActions.AutoAttackGeneral);
+            this.game.EnsureAutoAttack(mob);
         return true;
     }
 
