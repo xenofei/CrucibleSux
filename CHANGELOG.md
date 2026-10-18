@@ -6,16 +6,23 @@
 
 - **Share aggro with the beast (Settings, on by default):** in board battles, Snarl and Challenge hand the hits between you and your familiar.
   - **Safety first:** whoever would fall below its HP floor in the next 15 s hands off. The floors are Settings (you 35%, the familiar 15%). The expected loss starts at 25% per window and then follows the damage each of you actually takes; a tankbuster cast from the enemy intel triggers an early handoff.
-  - **Then score:** when both are safe, the one whose lost HP costs fewer points tanks (Selfless 1,000, Self-preservation 250, nothing when a campsite comes before the boss). Ties go to the beast.
-  - Each handoff and its reason goes into the combat log. While an enemy has the mechanic Rotation Solver Reborn's Beastmaster rotation Snarls for, aggro is left to it.
+  - **Then score:** when both are safe, the one whose lost HP costs fewer points tanks: Selfless (1,000) for the familiar, Self-preservation (250) for you, or the potions that undo it when cheaper. A campsite before the boss heals only you: AutoDuty rests no familiar. Ties go to the beast.
   - When neither of you is safe, the familiar takes the hits: your death ends the board, a KO'd beast costs about 250 points.
+  - Each handoff and its reason goes into the combat log. While an enemy has the mechanic Rotation Solver Reborn's Beastmaster rotation Snarls for, aggro is left to it.
 - **Heal with Beast Potions (Settings, on by default):** AutoDuty drinks potions only from your HP, which barely drops while a familiar covers you, and never heals a familiar. Crucible SUX now drinks them itself in board battles:
   - before a KO: for you below your floor, and for the familiar when the next 15 s would KO it and no handoff can save it
   - at the end of the final battle (boss below 15%): to bring the team and you to 100% when Selfless or Self-preservation is worth more than the Economic Ethos (750) a first potion costs; after any item has been used, further potions cost nothing
   - each potion and its reason goes into the combat log
+- **The original BossMod works again:** the first time a session or the journey starts, Crucible SUX asks which BossMod you use, BossMod Reborn or the original. Settings › Sessions and the Plugins tab show the answer, and you can change it there.
+  - The one you use covers mechanics. The other one is turned off for the run and back on afterwards, the same way the original BossMod was in 0.2.3; that question is part of the same window.
+  - Right after AutoDuty starts a board, Crucible SUX sets BossMod's "prevent moving while casting" back to off. AutoDuty turns it on when it manages BossMod's AI, and the original BossMod obeys it even while your rotation plugin fights, so you could not dodge while casting. AutoDuty restores your own value when it stops.
+  - The combat log header says which BossMod is in use.
+- **Tested versions:** the Plugins tab warns when a companion plugin is older than the release Crucible SUX was last checked against (vnavmesh 1.2.3.14, Rotation Solver Reborn 7.5.7.3, BossMod Reborn 7.5.7.1, BossMod 7.5.7.0, AutoDuty 0.0.0.389, Lifestream 2.6.0.7, TextAdvance 3.3.0.1).
 
 ### Changed
 
+- Checked against game 2026.10.06 (7.57). Its only Crucible data change: Sleepless Survival is worth 1,000 on every board (375 before), so a campsite rest now costs more than a first potion.
+- Until you answer the BossMod question, Crucible SUX assumes BossMod Reborn, as before.
 - `/sux report` copies the latest board's log, not the short "outside the boards" log a session records on the way out.
 
 ## [0.2.3] - 2026-10-11

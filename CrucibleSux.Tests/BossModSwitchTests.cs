@@ -6,7 +6,7 @@ public class BossModSwitchTests
 {
     private static readonly DateTime T0 = new(2026, 10, 11, 12, 0, 0, DateTimeKind.Utc);
 
-    private static SwitchView View(bool original = true, bool reborn = true, bool ipc = true, bool installed = true) => new(installed, original, reborn, ipc);
+    private static SwitchView View(bool off = true, bool kept = true, bool ipc = true, bool installed = true) => new(installed, off, kept, ipc);
 
     [Fact]
     public void Begin_turns_the_original_off_temporarily()
@@ -23,9 +23,9 @@ public class BossModSwitchTests
     {
         var s = new BossModSwitch();
 
-        Assert.Empty(s.Begin(View(original: false), T0));
+        Assert.Empty(s.Begin(View(off: false), T0));
         Assert.False(s.TurnedOff);
-        Assert.Equal(SwitchOutcome.Idle, s.Tick(View(original: false), T0).Outcome);
+        Assert.Equal(SwitchOutcome.Idle, s.Tick(View(off: false), T0).Outcome);
     }
 
     [Fact]
@@ -46,10 +46,10 @@ public class BossModSwitchTests
         var s = new BossModSwitch();
         s.Begin(View(), T0);
 
-        var step = s.Tick(View(original: false), T0.AddSeconds(1));
+        var step = s.Tick(View(off: false), T0.AddSeconds(1));
 
         Assert.Equal(SwitchOutcome.Ready, step.Outcome);
-        Assert.False(s.RebornReloaded);
+        Assert.False(s.Reloaded);
         Assert.True(s.TurnedOff);
     }
 
@@ -59,16 +59,16 @@ public class BossModSwitchTests
         var s = new BossModSwitch();
         s.Begin(View(), T0);
 
-        var off = s.Tick(View(original: false, ipc: false), T0.AddSeconds(1));
+        var off = s.Tick(View(off: false, ipc: false), T0.AddSeconds(1));
         Assert.Equal(["/xldisableplugintemp BossModReborn"], off.Commands);
-        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(original: false, ipc: false), T0.AddSeconds(2)).Outcome);
+        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(off: false, ipc: false), T0.AddSeconds(2)).Outcome);
 
-        var on = s.Tick(View(original: false, reborn: false, ipc: false), T0.AddSeconds(3));
+        var on = s.Tick(View(off: false, kept: false, ipc: false), T0.AddSeconds(3));
         Assert.Equal(["/xlenableplugintemp BossModReborn"], on.Commands);
-        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(original: false, ipc: false), T0.AddSeconds(4)).Outcome);
+        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(off: false, ipc: false), T0.AddSeconds(4)).Outcome);
 
-        Assert.Equal(SwitchOutcome.Ready, s.Tick(View(original: false), T0.AddSeconds(5)).Outcome);
-        Assert.True(s.RebornReloaded);
+        Assert.Equal(SwitchOutcome.Ready, s.Tick(View(off: false), T0.AddSeconds(5)).Outcome);
+        Assert.True(s.Reloaded);
     }
 
     [Fact]
@@ -90,9 +90,9 @@ public class BossModSwitchTests
     {
         var s = new BossModSwitch();
         s.Begin(View(), T0);
-        s.Tick(View(original: false), T0.AddSeconds(1));
+        s.Tick(View(off: false), T0.AddSeconds(1));
 
-        Assert.Equal(["/xlenableplugintemp BossMod"], s.Restore(View(original: false)));
+        Assert.Equal(["/xlenableplugintemp BossMod"], s.Restore(View(off: false)));
         Assert.False(s.TurnedOff);
     }
 
@@ -100,10 +100,10 @@ public class BossModSwitchTests
     public void Restore_leaves_a_plugin_the_player_turned_back_on_or_removed()
     {
         var s = new BossModSwitch(turnedOff: true);
-        Assert.Empty(s.Restore(View(original: true)));
+        Assert.Empty(s.Restore(View(off: true)));
 
         var removed = new BossModSwitch(turnedOff: true);
-        Assert.Empty(removed.Restore(View(original: false, installed: false)));
+        Assert.Empty(removed.Restore(View(off: false, installed: false)));
     }
 
     [Fact]
@@ -111,12 +111,27 @@ public class BossModSwitchTests
     {
         var s = new BossModSwitch();
         s.Begin(View(), T0);
-        s.Tick(View(original: false, ipc: false), T0.AddSeconds(1));
+        s.Tick(View(off: false, ipc: false), T0.AddSeconds(1));
 
-        Assert.Equal(["/xlenableplugintemp BossModReborn", "/xlenableplugintemp BossMod"], s.Restore(View(original: false, reborn: false, ipc: false)));
+        Assert.Equal(["/xlenableplugintemp BossModReborn", "/xlenableplugintemp BossMod"], s.Restore(View(off: false, kept: false, ipc: false)));
     }
 
     [Fact]
     public void Nothing_to_restore_when_nothing_was_turned_off() =>
-        Assert.Empty(new BossModSwitch().Restore(View(original: false)));
+        Assert.Empty(new BossModSwitch().Restore(View(off: false)));
+
+    [Fact]
+    public void For_the_original_BossMod_it_turns_Reborn_off_and_reloads_the_original()
+    {
+        var s = new BossModSwitch(BossModSwitch.Reborn);
+        Assert.Equal(BossModSwitch.Original, s.Kept);
+
+        Assert.Equal(["/xldisableplugintemp BossModReborn"], s.Begin(View(), T0));
+        Assert.Equal(["/xldisableplugintemp BossMod"], s.Tick(View(off: false, ipc: false), T0.AddSeconds(1)).Commands);
+        Assert.Equal(["/xlenableplugintemp BossMod"], s.Tick(View(off: false, kept: false, ipc: false), T0.AddSeconds(2)).Commands);
+        Assert.Equal(SwitchOutcome.Ready, s.Tick(View(off: false), T0.AddSeconds(3)).Outcome);
+        Assert.True(s.Reloaded);
+
+        Assert.Equal(["/xlenableplugintemp BossModReborn"], s.Restore(View(off: false)));
+    }
 }

@@ -10,7 +10,7 @@ Queue the boards, step away, and come back to a report.
   - each board's readiness, judged in queue order
   - the rankings
 
-  AutoDuty plays each board, with your rotation plugin and BossMod Reborn's AI. Crucible SUX handles the rest:
+  AutoDuty plays each board, with your rotation plugin and BossMod's AI. Crucible SUX handles the rest:
   - it watches every run and stops one that is stuck
   - it retries a run that failed outside the board, and stops the session if anything goes wrong inside one
   - it reports in chat and with a notification
@@ -30,10 +30,12 @@ Queue the boards, step away, and come back to a report.
 - **Plugins:** checks the companion plugins:
   - vnavmesh
   - Rotation Solver Reborn or BossMod Reborn
-  - BossMod Reborn's AI. The original BossMod must be off during a run, because it blocks movement while you cast. When a session or the journey starts, Crucible SUX offers to turn it off for the run and back on afterwards. Your plugin settings stay as they are.
+  - BossMod's AI: BossMod Reborn or the original BossMod. The first session or journey asks which one you use (you can change it in Settings). Both answer AutoDuty under the same names, so only that one may be loaded during a run: Crucible SUX offers to turn the other off for the run and back on afterwards. Your plugin settings stay as they are.
   - AutoDuty (erdelf's build)
   - Lifestream
   - TextAdvance
+
+  A plugin older than the release Crucible SUX was last tested with shows a warning.
 - **Log:** a combat log of each board, for bug reports. It records:
   - every enemy cast, with its area from the game data and where you stood
   - hits, HP, statuses and KOs, for you and your beasts

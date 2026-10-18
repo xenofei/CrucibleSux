@@ -156,8 +156,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
     }
 
     /// <summary>
-    /// What stops the journey from starting; empty when it can start. <paramref name="beforeSwitch"/> ignores the original
-    /// BossMod, which <see cref="BossModGate"/> turns off before the start.
+    /// What stops the journey from starting; empty when it can start. <paramref name="beforeSwitch"/> ignores the BossMod the
+    /// player does not use, which <see cref="BossModGate"/> turns off before the start.
     /// </summary>
     public IReadOnlyList<string> Checks(bool beforeSwitch = false)
     {
@@ -170,8 +170,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
             problems.Add("vnavmesh must be installed and enabled: it does the walking.");
         if (!this.Loaded("RotationSolver"))
             problems.Add("Rotation Solver Reborn must be installed and enabled: it does the fighting.");
-        if (!beforeSwitch && this.Loaded(BossModSwitch.Original))
-            problems.Add("The original BossMod is loaded: it blocks movement while you cast. Disable it, or start from Crucible SUX so it can turn it off for the run.");
+        string unused = BossModSwitch.OffFor(this.config.MechanicsPlugin);
+        if (!beforeSwitch && this.Loaded(unused))
+            problems.Add($"Only the BossMod you use may be loaded, and {BossModSwitch.Name(unused)} is too. Disable it, or start from Crucible SUX so it can turn it off for the run.");
         if (this.boards.Current is not null)
             problems.Add("A board session is running; stop it first.");
         return problems;

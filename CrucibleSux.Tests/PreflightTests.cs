@@ -4,7 +4,7 @@ namespace CrucibleSux.Tests;
 
 public class PreflightTests
 {
-    private static InstalledPlugin P(string name, string? repo = null) => new(name, new Version(1, 0), true, repo);
+    private static InstalledPlugin P(string name, string? repo = null) => new(name, new Version(99, 0), true, repo);
 
     private static readonly InstalledPlugin[] Plugins =
         [P("vnavmesh"), P("RotationSolver"), P("BossModReborn"), P("AutoDuty", "https://github.com/erdelf/AutoDuty")];
