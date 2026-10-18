@@ -890,6 +890,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (!this.game.InCombat)
             return false;
         var attackers = this.Attackers();
+        // In combat with nothing real attacking (a striking dummy's lingering combat): the task goes on, and walking on drops it.
+        if (attackers.Count == 0 && !this.game.Mounted && this.fleeingSince is null)
+            return false;
         switch (this.Assess(now, attackers, inFate: false))
         {
             case ThreatMove.Keep:
@@ -1033,7 +1036,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
         ulong current = me.TargetObject?.GameObjectId ?? 0;
         return [.. this.objects.OfType<IBattleNpc>()
-            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && ours.Contains(o.TargetObjectId))
+            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && ours.Contains(o.TargetObjectId)
+                && !GameActions.IsTrainingDummy(o))
             .OrderBy(o => o.GameObjectId == current ? 0 : 1)
             .ThenBy(o => this.game.DistanceTo(o.Position))];
     }
@@ -1473,7 +1477,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             return false;
         var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
         bool Fits(IBattleNpc o) =>
-            GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable
+            GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o)
             && o.Level <= level && o.Level >= level - GrindLevelsBelow
             && (GameActions.HasNoTarget(o) || ours.Contains(o.TargetObjectId))
             && ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == 0

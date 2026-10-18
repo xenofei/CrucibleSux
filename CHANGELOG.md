@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Stuck hitting a striking dummy:** after the dummy step of "Hearts Aligned", the dummy kept the character in combat and targeting it. On the way to the next NPC, the fight-back took it for an attacker and went back to it, forever.
+  - Training dummies never count as attackers, or as mobs to fight while levelling.
+  - Being in combat with nothing real attacking no longer holds up the task: walking on drops the dummy's combat.
+
 ## [0.3.11] - 2026-10-18
 
 ### Changed

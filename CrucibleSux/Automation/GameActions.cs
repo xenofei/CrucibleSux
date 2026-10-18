@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using CrucibleSux.Core;
@@ -360,6 +361,12 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
     }
 
     public static bool IsHostile(IGameObject o) => o.ObjectKind == ObjectKind.BattleNpc && o.SubKind == (byte)BattleNpcSubKind.Combatant;
+
+    /// <summary>BNpcName rows of the training dummies ("striking dummy", "timeworn striking dummy"): never killed, no EXP.</summary>
+    private static readonly HashSet<uint> TrainingDummies = [541, 13078];
+
+    /// <summary>A striking dummy. It keeps the character in combat and targets it, but it is not an enemy to fight.</summary>
+    public static bool IsTrainingDummy(IGameObject o) => o is IBattleNpc n && TrainingDummies.Contains(n.NameId);
 
     /// <summary>The object targets nobody. An idle mob holds the game's "no object" id 0xE0000000 there, not 0.</summary>
     public static bool HasNoTarget(IGameObject o) => (uint)o.TargetObjectId is 0 or 0xE0000000;
