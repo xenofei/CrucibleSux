@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+From the first play-test of the journey:
+
+- **Captures never started.** A wild beast that targets nobody holds the game's "no object" id, not 0, so every free squirrel looked as if it were fighting someone else, and the search walked past them. They are now recognised.
+- **Attacks were not fought back.** The character used to stand still: Rotation Solver Reborn fights but never moves the character, and a mounted character cannot fight. When something attacks the character or its beast, the character now:
+  - gets off its mount
+  - targets the attacker and walks to it while the rotation fights
+  - does this during travel, quests, captures, FATEs, gourds and the Kornago merchant
+  - deals with an attacker before the prey during a capture, and before the FATE's own enemies in a FATE
+
 ## [0.3.4] - 2026-10-18
 
 ### Added

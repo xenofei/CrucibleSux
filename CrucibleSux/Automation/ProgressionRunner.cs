@@ -383,10 +383,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 case ActivityKind.Capture:
                     this.DoCapture(now, activity, state);
                     break;
-                case ActivityKind.BuyGourd:
+                case ActivityKind.BuyGourd when !this.FightBack(now):
                     this.DoBuy(now, activity, state);
                     break;
-                case ActivityKind.UseGourd:
+                case ActivityKind.UseGourd when !this.FightBack(now):
                     this.DoUseGourd(now, activity);
                     break;
                 case ActivityKind.RunBoard:
@@ -676,7 +676,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.visits++;
             return true;
         }
-        if (this.FightBack())
+        if (this.FightBack(now))
             return false;
         this.rotation.Release();
 
@@ -822,7 +822,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>Walks (never rides) to the escort's next stop, fighting off what attacks, then talks to the escorted NPC.</summary>
     private bool Escort(DateTime now, QuestStep step)
     {
-        if (this.FightBack())
+        if (this.FightBack(now))
             return false;
         this.rotation.Release();
         if (!this.escortArrived)
@@ -839,16 +839,51 @@ public sealed unsafe class ProgressionRunner : IDisposable
         return this.Visit(now, step.At with { DataId = step.Arg }, mount: false);
     }
 
-    /// <summary>Stands and fights while something has the player in combat (Travel neither mounts nor teleports then); true while it does.</summary>
-    private bool FightBack()
+    /// <summary>
+    /// Fights while something has the player in combat (Travel neither mounts nor teleports then): gets off the mount,
+    /// targets what attacks the player or the beast and walks to it, since the rotation plugin fights but never moves the
+    /// character. True while it does.
+    /// </summary>
+    private bool FightBack(DateTime now)
     {
         if (!this.game.InCombat)
             return false;
-        if (this.nav.IsBusy)
-            this.nav.Stop();
+        if (this.game.Mounted)
+        {
+            if (this.nav.IsBusy)
+                this.nav.Stop();
+            if (this.Ready(now, 1.5))
+                this.game.UseGeneral(GameActions.Dismount);
+            this.Say("Getting off the mount to fight.");
+            return true;
+        }
         this.rotation.Set(Mode.Auto, targetFreely: true);
-        this.Say("Fighting off an attacker.");
+        if (this.Attacker() is { } attacker)
+        {
+            this.game.Target(attacker);
+            this.Chase(now, attacker);
+            this.Say($"Fighting off {attacker.Name.TextValue}.");
+        }
+        else
+        {
+            if (this.nav.IsBusy)
+                this.nav.Stop();
+            this.Say("Fighting off an attacker.");
+        }
         return true;
+    }
+
+    /// <summary>The living enemy attacking the player or the player's beast: the current target when it is one, else the nearest.</summary>
+    private IBattleNpc? Attacker()
+    {
+        if (this.game.Me is not { } me)
+            return null;
+        var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
+        var attackers = this.objects.OfType<IBattleNpc>()
+            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && ours.Contains(o.TargetObjectId))
+            .ToList();
+        return attackers.FirstOrDefault(o => o.GameObjectId == me.TargetObject?.GameObjectId)
+            ?? attackers.OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault();
     }
 
     /// <summary>Walks into melee range of a moving target; true when there.</summary>
@@ -898,13 +933,16 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (this.Prey(src, s.JobLevel) is not { } target)
         {
             this.prey = 0;
-            if (this.FightBack())
+            if (this.FightBack(now))
                 return;
             this.rotation.Release();
             this.Search(now, src);
             return;
         }
 
+        // Another mob attacking comes first: weakening the prey while something else hits would get the character KO'd.
+        if (this.Attacker() is { } other && other.GameObjectId != target.GameObjectId && this.FightBack(now))
+            return;
         this.prey = target.GameObjectId;
         this.since = null;
         int hp = target.MaxHp == 0 ? 100 : (int)(100L * target.CurrentHp / target.MaxHp);
@@ -942,7 +980,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
         bool Fits(IBattleNpc o) =>
             GameActions.IsHostile(o) && src.WildNames.Contains(o.NameId) && o.Level <= level && o.CurrentHp > 0 && o.IsTargetable
-            && (o.TargetObjectId == 0 || ours.Contains(o.TargetObjectId));
+            && (GameActions.HasNoTarget(o) || ours.Contains(o.TargetObjectId));
         var mobs = this.objects.OfType<IBattleNpc>().Where(Fits).ToList();
         return mobs.FirstOrDefault(o => o.GameObjectId == this.prey) ?? mobs.OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault();
     }
@@ -1110,7 +1148,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (here != this.zone)
         {
             // Teleporting waits out a fight, so fight it.
-            if (this.FightBack())
+            if (this.FightBack(now))
                 return;
             this.rotation.Release();
             this.Say($"Going to {this.ZoneName(this.zone)} for FATEs.");
@@ -1165,7 +1203,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             }
 
             // The rotation fights what is in reach; the character walks to the FATE's enemies itself.
-            if (this.FateEnemy(f.FateId) is { } enemy)
+            if ((this.Attacker() ?? this.FateEnemy(f.FateId)) is { } enemy)
             {
                 this.game.Target(enemy);
                 this.Chase(now, enemy);

@@ -355,4 +355,7 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
     }
 
     public static bool IsHostile(IGameObject o) => o.ObjectKind == ObjectKind.BattleNpc && o.SubKind == (byte)BattleNpcSubKind.Combatant;
+
+    /// <summary>The object targets nobody. An idle mob holds the game's "no object" id 0xE0000000 there, not 0.</summary>
+    public static bool HasNoTarget(IGameObject o) => (uint)o.TargetObjectId is 0 or 0xE0000000;
 }
