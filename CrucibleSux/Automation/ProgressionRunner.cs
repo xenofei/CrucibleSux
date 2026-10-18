@@ -45,6 +45,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>How far back a flight runs: mobs give up a chase once the character is far enough from where they started.</summary>
     private const float FleeBack = 40f;
     private const int Crumbs = 30;
+    private static readonly TimeSpan FleeStuckAfter = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan CrumbEvery = TimeSpan.FromSeconds(2);
 
     /// <summary>How long a zone left for having no FATEs is not chosen again for its measured rate.</summary>
@@ -131,6 +132,15 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private DateTime? fleeingSince;
     private Vector3? fleeTo;
     private bool wasDead;
+
+    /// <summary>Got away from a fight: rests until HP is full before carrying on (the owner's rule).</summary>
+    private bool recovering;
+
+    /// <summary>The enemies a flight ran from: not fought again as mobs while levelling.</summary>
+    private readonly HashSet<ulong> fledFrom = [];
+
+    private (DateTime At, Vector3 Pos) fleeCheck;
+    private int fleeTurns;
     private (uint Status, uint Action) lastRefusal;
     private (CaptureMove Move, bool InReach) captureStep;
     private int attackTries;
@@ -411,6 +421,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         // A striking dummy's fight lingers after its quest step, and blocks job changes, summons, teleports and talks.
         bool dummyStep = activity is { Kind: ActivityKind.Quest, Step.Kind: StepKind.FightDummy or StepKind.TemperedRelease or StepKind.Borrow };
         if (!dummyStep && this.LeaveDummyCombat())
+            return;
+        if (this.Recover())
             return;
 
         // A board run belongs to AutoDuty, including its windows.
@@ -980,6 +992,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.danger.Record(this.client.TerritoryType, here.X, here.Z);
             this.fleeTo = this.crumbs.Reverse().Select(c => (Vector3?)c.Pos).FirstOrDefault(p => Vector3.Distance(p!.Value, here) >= FleeBack)
                 ?? this.Away(here, attackers);
+            this.fledFrom.UnionWith(attackers.Select(a => a.GameObjectId));
+            this.fleeCheck = (now, here);
+            this.fleeTurns = 0;
             this.rotation.Release();
             this.travel.Reset();
             string who = string.Join(", ", attackers.Select(a => $"{a.Name.TextValue} (level {a.Level})"));
@@ -988,6 +1003,20 @@ public sealed unsafe class ProgressionRunner : IDisposable
         // Still in the fight on arrival: keep going, away from them.
         if (this.fleeTo is { } to && Vector3.Distance(to, here) < 5 && !this.nav.IsBusy)
             this.fleeTo = this.Away(here, attackers);
+        // Not moving (a rock, a wall, a point it cannot reach): turn 60, then 120 degrees either way and try again.
+        if (now - this.fleeCheck.At >= FleeStuckAfter)
+        {
+            if (Vector3.Distance(this.fleeCheck.Pos, here) < 1f)
+            {
+                this.fleeTurns++;
+                float turn = (this.fleeTurns % 2 == 1 ? 1 : -1) * 60f * ((this.fleeTurns + 1) / 2);
+                this.fleeTo = this.Away(here, attackers, turn);
+                if (this.nav.IsBusy)
+                    this.nav.Stop();
+                Plugin.Log.Information($"Journey: the flight is not moving; turning {turn:0} degrees");
+            }
+            this.fleeCheck = (now, here);
+        }
         if (!this.game.Mounted && this.Ready(now, 1))
             this.game.UseGeneral(GameActions.Sprint);
         if (!this.nav.IsBusy && this.fleeTo is { } dest)
@@ -995,14 +1024,40 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.Say($"Fleeing from {(attackers.Count == 1 ? attackers[0].Name.TextValue : $"{attackers.Count} enemies")}: the fight is not one to take.");
     }
 
-    /// <summary>A walkable point <see cref="FleeBack"/> yalms from <paramref name="here"/>, away from the attackers.</summary>
-    private Vector3 Away(Vector3 here, IReadOnlyList<IBattleNpc> attackers)
+    /// <summary>
+    /// A point <see cref="FleeBack"/> yalms from <paramref name="here"/>, away from the attackers (turned by
+    /// <paramref name="turnDegrees"/>), that a path can reach.
+    /// </summary>
+    private Vector3 Away(Vector3 here, IReadOnlyList<IBattleNpc> attackers, float turnDegrees = 0)
     {
         var from = attackers.Count == 0 ? here : attackers.Select(a => a.Position).Aggregate((a, b) => a + b) / attackers.Count;
         var dir = new Vector3(here.X - from.X, 0, here.Z - from.Z);
         dir = dir.LengthSquared() < 0.01f ? new Vector3(1, 0, 0) : Vector3.Normalize(dir);
+        if (turnDegrees != 0)
+            dir = Vector3.Transform(dir, Quaternion.CreateFromAxisAngle(Vector3.UnitY, turnDegrees * MathF.PI / 180f));
         var point = here + (dir * FleeBack);
-        return this.nav.Floor(point) ?? point;
+        return this.nav.Reachable(point) ?? this.nav.Floor(point) ?? point;
+    }
+
+    /// <summary>
+    /// After a flight: stands still out of combat until HP is full, so the character does not walk back into a fight it
+    /// just left. A new fight is left to <see cref="FightBack"/>. True while it rests.
+    /// </summary>
+    private bool Recover()
+    {
+        if (!this.recovering || this.game.InCombat || this.game.Me is not ICharacter me)
+            return false;
+        if (me.CurrentHp >= me.MaxHp)
+        {
+            this.recovering = false;
+            Plugin.Log.Information("Journey: back to full HP after the flight");
+            return false;
+        }
+        if (this.nav.IsBusy)
+            this.nav.Stop();
+        this.rotation.Release();
+        this.Say(FormattableString.Invariant($"Resting after the flight: HP {Pct(me):0}%, carrying on at 100%."));
+        return true;
     }
 
     /// <summary>Every tick: the HP lost in a fight, where the character has been out of combat, and the end of a flight.</summary>
@@ -1022,6 +1077,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             if (this.fleeingSince is not null)
             {
                 Plugin.Log.Information("Journey: got away");
+                this.recovering = true;
                 this.fleeingSince = null;
                 this.fleeTo = null;
                 if (this.nav.IsBusy)
@@ -1513,7 +1569,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             return false;
         var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
         bool Fits(IBattleNpc o) =>
-            GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o)
+            GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o) && !this.fledFrom.Contains(o.GameObjectId)
             && o.Level <= level && o.Level >= level - GrindLevelsBelow
             && (GameActions.HasNoTarget(o) || ours.Contains(o.TargetObjectId))
             && ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == 0

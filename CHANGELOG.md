@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Back into the fight it just fled:** after getting away, the character went straight back, at 70% HP and still regenerating, to the same Stagnant Water Sprite and Bog Yarzon, and fled four times in two minutes. Now after a flight it rests out of combat until HP is full, and the mobs it fled from are not fought again while levelling.
+- **Stuck on a rock while fleeing:** a flight that stops moving for 2 s turns 60, then 120 degrees either way and tries again. Its points are now ones vnavmesh can reach from where the character stands.
+
+### Added
+
+- The combat log now records the character's and its familiar's own actions, to see which skills the rotation plugin really uses.
+
 ## [0.3.15] - 2026-10-18
 
 ### Fixed

@@ -584,7 +584,9 @@ public sealed unsafe class CombatRecorder : IDisposable
         bool system = type is XivChatType.SystemMessage or XivChatType.SystemError or XivChatType.ErrorMessage or XivChatType.NPCDialogueAnnouncements;
         bool onYou = type is XivChatType.Damage or XivChatType.Miss or XivChatType.GainDebuff && message.TargetKind == XivChatRelationKind.LocalPlayer;
         bool enemyAction = type == XivChatType.Action && message.SourceKind is XivChatRelationKind.EngagedEnemy or XivChatRelationKind.UnengagedEnemy;
-        if (system || onYou || enemyAction)
+        // The character's and its familiar's own actions, to see which skills the rotation plugin really uses.
+        bool ownAction = type == XivChatType.Action && message.SourceKind is XivChatRelationKind.LocalPlayer or XivChatRelationKind.PetOrCompanion;
+        if (system || onYou || enemyAction || ownAction)
             this.Note(LogKind.Chat, $"[{type}] {message.Message.TextValue}");
     }
 
