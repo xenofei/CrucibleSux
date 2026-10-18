@@ -9,13 +9,14 @@ namespace CrucibleSux.Ui;
 
 /// <summary>The Journey tab: the three opt-in parts of the Beastmaster journey, start and stop, and what it is doing.</summary>
 /// <param name="start">Starts the journey, turning the BossMod the player does not use off first when needed.</param>
-/// <param name="startUnlock">Starts it in unlock-only mode: "Strangers in the Wood" and the job's gear, then stop.</param>
-public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save, Action start, Action startUnlock)
+/// <param name="startGoal">Starts it for a goal whatever the parts say: unlock the job, or go on to the Crucible.</param>
+public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save, Action start, Action<JourneyGoal> startGoal)
 {
     private static readonly TimeSpan PreviewEvery = TimeSpan.FromSeconds(1);
     private DateTime nextPreview;
     private Activity? preview;
     private bool canUnlock;
+    private bool canReachCrucible;
 
     public void Draw()
     {
@@ -57,6 +58,7 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
             this.nextPreview = now + PreviewEvery;
             this.preview = journey.Preview();
             this.canUnlock = journey.CanUnlock();
+            this.canReachCrucible = journey.CanReachCrucible();
         }
         if (this.preview is { } next)
         {
@@ -79,9 +81,17 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
         {
             ImGui.SameLine();
             if (ImGui.Button("Unlock Beastmaster only"))
-                startUnlock();
+                startGoal(JourneyGoal.Unlock);
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("Picks up \"Strangers in the Wood\", plays it through, switches to Beastmaster and sets up its gear, then stops.");
+        }
+        if (this.canUnlock || this.canReachCrucible)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button(this.canUnlock ? "Unlock and go on to the Crucible" : "Go on to the Crucible"))
+                startGoal(JourneyGoal.Crucible);
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Does the job quests, with the levels and beasts they ask for, until \"Into the Crucible\" opens the First Board, then stops.");
         }
         ImGui.SameLine();
         ImGui.TextDisabled("Unattended automation is against the game's terms of service.");

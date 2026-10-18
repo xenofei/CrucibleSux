@@ -22,7 +22,7 @@ Queue the boards, step away, and come back to a report.
   - **Beasts:** captures the wild ones, uses gourds you hold, and buys the rest from the Kornago merchant (farming remnants on the highest cleared board when short). Remnants are spent only with this part on.
   - **Levelling:** FATEs in the zones that suit each level band, picked by expected EXP per second, with level sync. It moves zone when another one has measured faster.
 
-  It needs vnavmesh and Rotation Solver Reborn. A character that can take the unlock quest but has not is offered the unlock on its own: Crucible SUX picks the quest up, plays it and sets up Beastmaster's gear. You put beasts on Battlehorns yourself when asked, because no API to do it is known yet.
+  It needs vnavmesh and Rotation Solver Reborn. A character that can take the unlock quest but has not is offered the unlock on its own: Crucible SUX picks the quest up, plays it and sets up Beastmaster's gear, and can go on with the job quests until the First Board opens. You put beasts on Battlehorns yourself when asked, because no API to do it is known yet.
 - **Overview:** each board's clear, third degree, Apex and Legendary, plus the Crucible achievements and how far you are from each tier.
 - **One sitting:** whether you can clear every remaining board in one go and, if not, which board stops you and why. It checks job level, unlock quests, beasts befriended, item level, roster size and beast ranks.
 - **Beasts:** all 50 beasts, which you have befriended, their ranks and where to find the ones you are missing. Ranks are read when you open a beast's page in the Master's Bestiary.

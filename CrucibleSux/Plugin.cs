@@ -85,10 +85,10 @@ public sealed class Plugin : IDalamudPlugin
         this.bossModPrompt = new BossModPrompt(this.bossMod);
         var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save, this.StartSession);
         this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs,
-            new JourneyTab(this.journey, this.config, this.Save, () => this.StartJourney(), () => this.StartJourney(unlockOnly: true)), new LogTab(this.recorder, this.config, this.Save), this.Save);
+            new JourneyTab(this.journey, this.config, this.Save, () => this.StartJourney(), this.StartJourney), new LogTab(this.recorder, this.config, this.Save), this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
         this.windowSystem.AddWindow(this.bossModPrompt);
-        this.unlockPrompt = new UnlockPrompt(this.journey, this.config, this.Save, () => this.StartJourney(unlockOnly: true));
+        this.unlockPrompt = new UnlockPrompt(this.journey, this.config, this.Save, this.StartJourney);
         this.windowSystem.AddWindow(this.unlockPrompt);
 
         var help = new CommandInfo(this.OnCommand)
@@ -253,31 +253,31 @@ public sealed class Plugin : IDalamudPlugin
             ChatGui.PrintError($"[Crucible SUX] {check.Label}: {check.Detail}");
     }
 
-    /// <param name="unlockOnly">Only unlock Beastmaster (the unlock offer), whatever the journey's parts say.</param>
-    private void StartJourney(bool unlockOnly = false)
+    /// <param name="goal">Unlock Beastmaster, or go on to the Crucible, whatever the journey's parts say; the parts by default.</param>
+    private void StartJourney(JourneyGoal goal = JourneyGoal.Parts)
     {
         if (this.journey.Running)
         {
             ChatGui.Print("[Crucible SUX] The journey is already running.");
             return;
         }
-        // "Strangers in the Wood" has no board, so the BossMod question and switch are not needed for it.
-        if (unlockOnly)
+        // Neither goal runs a board before it stops, so the BossMod question and switch are not needed for them.
+        if (goal != JourneyGoal.Parts)
         {
-            if (!this.journey.Start(unlockOnly: true))
-                PrintJourneyProblems(this.journey.Checks(unlockOnly: true));
+            if (!this.journey.Start(goal))
+                PrintJourneyProblems(this.journey.Checks(goal: goal));
             return;
         }
         this.bossMod.Run("the journey", () =>
         {
-            var problems = this.journey.Checks(beforeSwitch: true, unlockOnly: unlockOnly);
+            var problems = this.journey.Checks(beforeSwitch: true);
             if (problems.Count > 0)
                 PrintJourneyProblems(problems);
             return problems.Count == 0;
         }, () =>
         {
-            if (!this.journey.Start(unlockOnly))
-                PrintJourneyProblems(this.journey.Checks(unlockOnly: unlockOnly));
+            if (!this.journey.Start())
+                PrintJourneyProblems(this.journey.Checks());
         });
     }
 

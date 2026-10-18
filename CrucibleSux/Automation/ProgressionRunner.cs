@@ -160,11 +160,15 @@ public sealed unsafe class ProgressionRunner : IDisposable
     public string? LastResult { get; private set; }
 
     /// <summary>Only "Strangers in the Wood" and the job's gear setup, then stop (the unlock offer).</summary>
-    private bool unlockOnly;
+    private JourneyGoal goal;
 
-    private ProgressionOptions Options => this.unlockOnly
-        ? new(Quests: true, Beasts: false, Leveling: false)
-        : new(this.config.ProgressQuests, this.config.ProgressBeasts, this.config.ProgressLeveling);
+    private ProgressionOptions Options => this.goal switch
+    {
+        JourneyGoal.Unlock => new(Quests: true, Beasts: false, Leveling: false),
+        // The quests' own beasts are collected without the beasts part; their levels need levelling.
+        JourneyGoal.Crucible => new(Quests: true, Beasts: false, Leveling: true),
+        _ => new(this.config.ProgressQuests, this.config.ProgressBeasts, this.config.ProgressLeveling),
+    };
 
     public void Dispose()
     {
@@ -176,22 +180,25 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// What stops the journey from starting; empty when it can start. <paramref name="beforeSwitch"/> ignores the BossMod the
     /// player does not use, which <see cref="BossModGate"/> turns off before the start.
     /// </summary>
-    /// <param name="unlockOnly">Checks for <see cref="Start"/> in unlock-only mode, which needs none of the parts turned on.</param>
-    public IReadOnlyList<string> Checks(bool beforeSwitch = false, bool unlockOnly = false)
+    /// <param name="goal">The goal to check a start for; only <see cref="JourneyGoal.Parts"/> needs parts turned on.</param>
+    public IReadOnlyList<string> Checks(bool beforeSwitch = false, JourneyGoal goal = JourneyGoal.Parts)
     {
         var problems = new List<string>();
         if (this.game.Me is null)
             problems.Add("Log in to a character.");
-        if (!unlockOnly && !this.Options.Any)
+        if (goal == JourneyGoal.Parts && !this.Options.Any)
             problems.Add("Turn on at least one part of the journey.");
         if (!this.Loaded("vnavmesh"))
             problems.Add("vnavmesh must be installed and enabled: it does the walking.");
         if (!this.Loaded("RotationSolver"))
             problems.Add("Rotation Solver Reborn must be installed and enabled: it does the fighting.");
-        if (unlockOnly && this.game.Me is not null && !this.CanUnlock())
+        if (goal == JourneyGoal.Unlock && this.game.Me is not null && !this.CanUnlock())
             problems.Add("This character cannot take \"Strangers in the Wood\" now, or has finished it.");
+        if (goal == JourneyGoal.Crucible && this.game.Me is not null && !this.CanUnlock() && !this.CanReachCrucible())
+            problems.Add("This character cannot unlock Beastmaster now, or the First Board is already open.");
         string unused = BossModSwitch.OffFor(this.config.MechanicsPlugin);
-        if (!beforeSwitch && !unlockOnly && this.Loaded(unused))
+        // Neither goal runs a board before it stops, so only the parts need the BossMod you do not use off.
+        if (!beforeSwitch && goal == JourneyGoal.Parts && this.Loaded(unused))
             problems.Add($"Only the BossMod you use may be loaded, and {BossModSwitch.Name(unused)} is too. Disable it, or start from Crucible SUX so it can turn it off for the run.");
         if (this.boards.Current is not null)
             problems.Add("A board session is running; stop it first.");
@@ -212,12 +219,15 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>Whether the character can unlock Beastmaster and has not yet (<see cref="JourneyRules.CanOfferUnlock"/>).</summary>
     public bool CanUnlock() => this.reader.Capture(out _) is { } state && JourneyRules.CanOfferUnlock(state);
 
-    /// <param name="unlockOnly">Do "Strangers in the Wood" and set Beastmaster's gear up, then stop, whatever the parts say.</param>
-    public bool Start(bool unlockOnly = false)
+    /// <summary>Whether Beastmaster is unlocked and the First Board not yet open (<see cref="JourneyRules.CanOfferCrucible"/>).</summary>
+    public bool CanReachCrucible() => this.reader.Capture(out _) is { } state && JourneyRules.CanOfferCrucible(state);
+
+    /// <param name="goal">What to do whatever the parts say: unlock the job, or go on to the Crucible; <see cref="JourneyGoal.Parts"/> follows them.</param>
+    public bool Start(JourneyGoal goal = JourneyGoal.Parts)
     {
-        if (this.Running || this.Checks(unlockOnly: unlockOnly).Count > 0)
+        if (this.Running || this.Checks(goal: goal).Count > 0)
             return false;
-        this.unlockOnly = unlockOnly;
+        this.goal = goal;
         this.unlockedAt = null;
         this.gearSetup = this.gearTries = this.jobTries = 0;
         this.Running = true;
@@ -239,7 +249,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (!this.Running)
             return;
         this.Running = false;
-        this.unlockOnly = false;
+        this.goal = JourneyGoal.Parts;
         this.Reset();
         if (this.boardRun != 0 && this.boards.Current is not null)
             this.boards.Stop(reason);
@@ -291,7 +301,12 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.Stop("No character is loaded.");
             return;
         }
-        if (this.unlockOnly && state.IsComplete(CrucibleIds.Quests.StrangersInTheWood))
+        if (this.goal == JourneyGoal.Crucible && state.IsComplete(CrucibleIds.Quests.IntoTheCrucible))
+        {
+            this.Stop("The First Board is open: queue it in the Run tab, or turn on more of the journey.", done: true);
+            return;
+        }
+        if (this.goal == JourneyGoal.Unlock && state.IsComplete(CrucibleIds.Quests.StrangersInTheWood))
         {
             // The job setup needs no beast list; it waits for the quest's last window and event to close.
             this.unlockedAt ??= now;

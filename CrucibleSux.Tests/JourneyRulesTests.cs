@@ -40,6 +40,17 @@ public class JourneyRulesTests
     }
 
     [Fact]
+    public void Going_on_to_the_Crucible_is_offered_from_the_unlock_until_the_First_Board_opens()
+    {
+        static ProgressionState Char(params uint[] done) =>
+            new(1, 50, done.ToDictionary(q => q, _ => new QuestProgress(QuestState.Complete, 0)), new HashSet<uint>(), new HashSet<int>(), new Dictionary<uint, int>());
+
+        Assert.False(JourneyRules.CanOfferCrucible(Char()));
+        Assert.True(JourneyRules.CanOfferCrucible(Char(CrucibleIds.Quests.StrangersInTheWood)));
+        Assert.False(JourneyRules.CanOfferCrucible(Char(CrucibleIds.Quests.StrangersInTheWood, CrucibleIds.Quests.IntoTheCrucible)));
+    }
+
+    [Fact]
     public void Progress_is_the_same_for_the_same_game_state() =>
         Assert.Equal(JourneyRules.Progress("k", State(), 100, 148), JourneyRules.Progress("k", State(), 100, 148));
 

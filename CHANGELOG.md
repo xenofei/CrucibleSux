@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Go on to the Crucible:** after the unlock, Crucible SUX can carry on with the Beastmaster job quests until "Into the Crucible" opens the First Board, then stop.
+  - Along the way it levels to each quest's level and captures the beasts the quests ask for (15 by "Into the Crucible", level 30). It does this whatever the Journey tab's parts say.
+  - The offer window now has "Unlock and go on to the Crucible" next to "Unlock Beastmaster". A character that already has Beastmaster but not the Crucible is offered "Go on to the Crucible" instead.
+  - The Journey tab has the same buttons.
+  - No board runs before it stops, so the BossMod question is skipped.
+
 ## [0.3.3] - 2026-10-18
 
 ### Changed

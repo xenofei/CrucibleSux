@@ -59,6 +59,21 @@ public class ProgressionTests
     }
 
     [Fact]
+    public void The_way_to_the_Crucible_needs_only_the_job_quests_and_levelling()
+    {
+        // The "go on to the Crucible" goal: no beasts part, so every beast and level a quest needs must still be planned.
+        var crucible = new ProgressionOptions(Quests: true, Beasts: false, Leveling: true);
+        foreach (var quest in QuestScripts.All.Select(q => q.Id).SkipWhile(id => id == CrucibleIds.Quests.StrangersInTheWood).TakeWhile(id => id != CrucibleIds.Quests.IntoTheCrucible).Append(CrucibleIds.Quests.IntoTheCrucible))
+        {
+            foreach (int level in new[] { 1, 15, 25, 30 })
+            {
+                var a = ProgressionPlanner.Next(State(level: level, done: Before(quest)), crucible);
+                Assert.True(a.Kind != ActivityKind.Blocked, $"before {quest} at level {level}: {a.Why}");
+            }
+        }
+    }
+
+    [Fact]
     public void Beasts_alone_cannot_unlock_the_job()
     {
         var a = ProgressionPlanner.Next(State(level: 0, owned: []), new(false, true, true));

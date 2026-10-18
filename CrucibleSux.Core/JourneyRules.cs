@@ -13,6 +13,19 @@ public enum BoardEnd
     Failed,
 }
 
+/// <summary>What a journey run aims for and where it stops.</summary>
+public enum JourneyGoal
+{
+    /// <summary>The parts turned on in the Journey tab, until they are done.</summary>
+    Parts,
+
+    /// <summary>"Strangers in the Wood" and Beastmaster's gear setup, then stop.</summary>
+    Unlock,
+
+    /// <summary>The job quests, with the levels and beasts they ask for, until "Into the Crucible" opens the First Board.</summary>
+    Crucible,
+}
+
 /// <summary>The journey runner's decisions that need no game: what counts as progress, how a board ended, where to level.</summary>
 public static class JourneyRules
 {
@@ -21,6 +34,10 @@ public static class JourneyRules
     /// (Dawntrail registered, the main scenario through <see cref="QuestScripts.UnlockPrerequisite"/> and another combat job at
     /// its level).
     /// </summary>
+    /// <summary>Beastmaster is unlocked, and "Into the Crucible", which opens the First Board, is not done yet.</summary>
+    public static bool CanOfferCrucible(ProgressionState s) =>
+        s.IsComplete(CrucibleIds.Quests.StrangersInTheWood) && !s.IsComplete(CrucibleIds.Quests.IntoTheCrucible);
+
     public static bool CanOfferUnlock(ProgressionState s)
     {
         var unlock = QuestScripts.ById(CrucibleIds.Quests.StrangersInTheWood);
