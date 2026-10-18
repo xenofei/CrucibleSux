@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Stuck at a FATE with nothing to fight:** inside the FATE's circle but with none of its enemies matched by their FATE id, the character stood still.
+  - It now also takes any enemy inside the FATE's circle, and it walks toward the centre while it sees none.
+  - Auto-attack is turned on when it reaches a FATE enemy.
+- **A flight that cannot finish:** vnavmesh's flying path toward a FATE kept stopping at the same ledge about 38 y short. A flight that ends before the destination now turns that trip to the ground: the character lands and walks, or rides, the rest.
+
 ## [0.3.16] - 2026-10-18
 
 ### Fixed

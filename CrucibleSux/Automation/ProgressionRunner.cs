@@ -38,6 +38,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>A FATE whose progress has not moved for this long while the character is in it is left (a boss it cannot solo).</summary>
     private static readonly TimeSpan FateStallsAfter = TimeSpan.FromMinutes(3);
 
+    /// <summary>How close to a FATE's centre the character goes when it sees none of the FATE's enemies.</summary>
+    private const float FateCentre = 8f;
+
     /// <summary>Open-world mobs fought while no FATE can be joined: this far, and from this many levels under the character.</summary>
     private const float GrindRange = 100f;
     private const int GrindLevelsBelow = 4;
@@ -1506,12 +1509,20 @@ public sealed unsafe class ProgressionRunner : IDisposable
             // The rotation fights what is in reach; the character walks to the FATE's enemies itself.
             if (this.FleeIfThreatened(now, inFate: true))
                 return;
-            if ((this.Attacker() ?? this.FateEnemy(f.FateId)) is { } enemy)
+            if ((this.Attacker() ?? this.FateEnemy(f)) is { } enemy)
             {
                 this.game.Target(enemy);
-                this.Chase(now, enemy);
+                if (this.Chase(now, enemy))
+                    this.game.EnsureAutoAttack(enemy);
+                this.Say($"FATE \"{f.Name}\": {f.Progress}%.");
             }
-            this.Say($"FATE \"{f.Name}\": {f.Progress}%.");
+            else
+            {
+                // Nothing to fight from here: closer to the centre, where the FATE's enemies are.
+                if (!this.nav.IsBusy && Vector2.Distance(new(f.Position.X, f.Position.Z), new(me.Position.X, me.Position.Z)) > FateCentre)
+                    this.nav.MoveCloseTo(f.Position, FateCentre, fly: this.game.InFlight);
+                this.Say($"FATE \"{f.Name}\": {f.Progress}%, looking for its enemies.");
+            }
             return;
         }
 
@@ -1605,15 +1616,18 @@ public sealed unsafe class ProgressionRunner : IDisposable
     }
 
     /// <summary>The current target when it is alive and hostile, else the nearest living enemy of FATE <paramref name="fateId"/>.</summary>
-    private IGameObject? FateEnemy(ushort fateId)
+    private IGameObject? FateEnemy(IFate f)
     {
-        if (this.objects.LocalPlayer?.TargetObject is IBattleNpc t && GameActions.IsHostile(t) && !t.IsDead && t.CurrentHp > 0)
+        if (this.objects.LocalPlayer?.TargetObject is IBattleNpc t && GameActions.IsHostile(t) && !t.IsDead && t.CurrentHp > 0 && !GameActions.IsTrainingDummy(t))
             return t;
-        return this.objects.OfType<IBattleNpc>()
-            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable
-                && ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == fateId)
-            .OrderBy(o => this.game.DistanceTo(o.Position))
-            .FirstOrDefault();
+        var alive = this.objects.OfType<IBattleNpc>()
+            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o))
+            .ToList();
+        // The FATE's own enemies; failing that, any enemy inside its circle (the mobs' FATE id is not always set).
+        return alive.Where(o => ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == f.FateId)
+                .OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault()
+            ?? alive.Where(o => Vector2.Distance(new(o.Position.X, o.Position.Z), new(f.Position.X, f.Position.Z)) <= f.Radius)
+                .OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault();
     }
 
     /// <summary>A collection FATE: it asks for an item to be handed in.</summary>

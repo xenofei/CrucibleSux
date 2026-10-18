@@ -35,6 +35,12 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
 
     private DateTime nextTry;
     private DateTime? teleportedAt;
+
+    /// <summary>The last path asked for was a flight; one that ends short of the destination turns the trip to the ground.</summary>
+    private bool flying;
+
+    /// <summary>This trip goes on the ground: a flight to it stopped short (a ledge, an overhang, a no-fly pocket).</summary>
+    private bool groundOnly;
     private Vector3? resolved;
     private (uint Territory, Vector3 Point)? target;
 
@@ -48,6 +54,7 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         this.target = null;
         this.resolved = null;
         this.teleportedAt = null;
+        this.flying = this.groundOnly = false;
         this.Problem = null;
     }
 
@@ -91,11 +98,24 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
 
         if (nav.IsBusy || now < this.nextTry)
             return TravelState.Moving;
+        // A flight that ended here, short of the destination: the rest of this trip goes on the ground.
+        if (this.flying && !this.groundOnly)
+        {
+            this.groundOnly = true;
+            Plugin.Log.Information($"Travel: the flight stopped {distance:0} y short; going on the ground");
+        }
+        this.flying = false;
         this.nextTry = now + RetryEvery;
         if (!nav.IsReady)
             return TravelState.Moving;
 
-        bool fly = this.CanFlyHere();
+        bool fly = !this.groundOnly && this.CanFlyHere();
+        if (this.groundOnly && game.InFlight)
+        {
+            // Land first: a walking path cannot start in the air.
+            game.UseGeneral(GameActions.Dismount);
+            return TravelState.Moving;
+        }
         if (mount && !game.Mounted && !game.InCombat && distance > MountBeyond && this.CanMountHere())
         {
             game.UseGeneral(fly ? GameActions.FlyingMountRoulette : GameActions.MountRoulette);
@@ -106,7 +126,8 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             game.UseGeneral(GameActions.Dismount);
             return TravelState.Moving;
         }
-        if (!nav.MoveTo(d, fly: (fly && game.Mounted) || game.InFlight))
+        this.flying = (fly && game.Mounted) || game.InFlight;
+        if (!nav.MoveTo(d, fly: this.flying))
             Plugin.Log.Debug($"vnavmesh refused a path to {d}");
         return TravelState.Moving;
     }
