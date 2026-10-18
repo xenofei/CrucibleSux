@@ -5,7 +5,7 @@ namespace CrucibleSux.Tests;
 public class ThreatTests
 {
     private static ThreatView View(int[] attackers, int level = 10, double hp = 100, double loss = 0, bool mounted = false, bool riding = false, TimeSpan? fleeing = null) =>
-        new(mounted, riding, level, attackers, hp, loss, Floor: 35, fleeing);
+        new(mounted, riding, level, attackers, hp, loss, Floor: ThreatPolicy.DefaultFleeBelow, fleeing);
 
     [Fact]
     public void An_even_fight_is_fought()
@@ -21,8 +21,9 @@ public class ThreatTests
         Assert.Equal(ThreatMove.Flee, ThreatPolicy.Decide(View([8, 8, 8])));
         // A FATE's group at the synced level is the FATE, not a crowd to run from.
         Assert.Equal(ThreatMove.Fight, ThreatPolicy.Decide(View([10, 10, 10]) with { InFate = true }));
-        // 60% now, losing 6% a second: 30% in 5 s, below the 35% floor.
-        Assert.Equal(ThreatMove.Flee, ThreatPolicy.Decide(View([10], hp: 60, loss: 6)));
+        // 30% now, losing 6% a second: 18% in 2 s, below the 20% flee point; at 50% it fights on (the owner's rule).
+        Assert.Equal(ThreatMove.Flee, ThreatPolicy.Decide(View([10], hp: 30, loss: 6)));
+        Assert.Equal(ThreatMove.Fight, ThreatPolicy.Decide(View([10], hp: 50, loss: 6)));
     }
 
     [Fact]

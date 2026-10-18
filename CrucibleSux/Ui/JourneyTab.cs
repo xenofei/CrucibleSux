@@ -33,6 +33,15 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
                 config.ProgressBeasts, v => config.ProgressBeasts = v);
             this.Option("Level Beastmaster to 50", "FATEs in the zones that suit each level band, best expected EXP per second first; the zone changes when another has measured faster.",
                 config.ProgressLeveling, v => config.ProgressLeveling = v);
+            int fleeBelow = config.FleeBelow;
+            ImGui.SetNextItemWidth(160f);
+            if (ImGui.SliderInt("Flee below (HP %)", ref fleeBelow, 5, 60))
+            {
+                config.FleeBelow = fleeBelow;
+                save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Out in the world, the character runs from a fight when its HP would drop below this within 2 s. It also runs from an enemy 3+ levels above it, or 3+ at once outside FATEs.");
         }
         ImGui.Spacing();
         ImGui.Separator();

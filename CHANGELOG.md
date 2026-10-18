@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Fleeing later:** the journey fled at around 50% HP against fast hits, because it looked 5 s ahead against a 35% floor. It now looks 2 s ahead against its own flee point, 20% by default, set in the Journey tab ("Flee below"). Running from an enemy 3+ levels above, or from 3+ at once outside FATEs, is unchanged.
+
+### Fixed
+
+- **Rotation Solver Reborn not using the job's skills:** in the play-test the character summoned its familiar but cast no weaponskills. RSR switches itself off 30 s after combat and between areas, and Crucible SUX sent "on" only when its own idea of RSR's state changed, so a later fight could run with RSR off. The journey now sends the mode again at the start of every fight and after every zone change.
+
 ## [0.3.21] - 2026-10-18
 
 ### Added

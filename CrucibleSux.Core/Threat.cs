@@ -31,7 +31,7 @@ public sealed record ThreatView(
 
 /// <summary>
 /// Fight or flee (docs/research/18-threats.md): flee from an enemy 3 or more levels above the character, from 3 or more
-/// enemies at once, or when the HP lost in the next 5 s would take the character below its floor. A mounted character
+/// enemies at once, or when the HP lost in the next 2 s would take the character below its flee point (20% by default). A mounted character
 /// stays mounted: it rides on while moving, and rides away when it is standing. After a minute of fleeing without getting
 /// away, it fights.
 /// </summary>
@@ -39,7 +39,10 @@ public static class ThreatPolicy
 {
     public const int TooStrongLevels = 3;
     public const int TooMany = 3;
-    public static readonly TimeSpan Horizon = TimeSpan.FromSeconds(5);
+    public const double DefaultFleeBelow = 20;
+
+    /// <summary>How far ahead the HP rule looks; longer makes the character flee at higher HP against fast hits.</summary>
+    public static readonly TimeSpan Horizon = TimeSpan.FromSeconds(2);
     public static readonly TimeSpan GiveUpAfter = TimeSpan.FromMinutes(1);
 
     public static ThreatMove Decide(ThreatView v)

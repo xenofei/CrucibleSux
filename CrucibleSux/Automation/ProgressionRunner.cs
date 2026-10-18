@@ -139,6 +139,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private readonly DangerMap danger = new();
     private readonly Queue<(DateTime At, Vector3 Pos)> crumbs = new();
     private bool wasInCombat;
+    private uint watchedZone;
     private DateTime? fleeingSince;
     private Vector3? fleeTo;
     private bool wasDead;
@@ -989,7 +990,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             [.. attackers.Select(a => (int)a.Level)],
             Pct(me),
             this.hpMeter.Dtps(Actor.Player),
-            this.config.PlayerFloor,
+            this.config.FleeBelow,
             this.fleeingSince is { } since ? now - since : null,
             inFate));
     }
@@ -1084,6 +1085,12 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (this.game.Me is not ICharacter me)
             return;
         bool combat = this.game.InCombat;
+        // RSR may have switched itself off since it was last told: tell it again for each fight and each zone.
+        if (combat != this.wasInCombat || this.client.TerritoryType != this.watchedZone)
+        {
+            this.watchedZone = this.client.TerritoryType;
+            this.rotation.Reassert();
+        }
         if (combat)
         {
             if (!this.wasInCombat)

@@ -35,6 +35,9 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ProgressLeveling { get; set; }
 
+    /// <summary>The journey flees a fight when HP would fall below this (in 2 s at the rate it is dropping).</summary>
+    public int FleeBelow { get; set; } = (int)ThreatPolicy.DefaultFleeBelow;
+
     /// <summary>Characters (by content id) that said "don't ask again" to the offer to unlock Beastmaster.</summary>
     public List<ulong> UnlockOfferDeclined { get; set; } = [];
 

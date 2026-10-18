@@ -29,7 +29,7 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
     private Mode? current;
     private bool freely;
 
-    /// <summary>Sets the mode; repeated calls with the same mode are not resent.</summary>
+    /// <summary>Sets the mode; repeated calls with the same mode are not resent (see <see cref="Reassert"/>).</summary>
     public bool Set(Mode mode, bool targetFreely = false)
     {
         try
@@ -64,6 +64,13 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
         this.freely = true;
         this.Set(Mode.Off);
     }
+
+    /// <summary>
+    /// Forgets the mode last sent, so the next <see cref="Set"/> sends it again. RSR switches itself off on its own (30 s
+    /// after combat, between areas) and has no IPC to read its state back, so this is called when a fight starts and after
+    /// a zone change.
+    /// </summary>
+    public void Reassert() => this.current = null;
 
     /// <summary>Turns the rotation off and drops the target override; safe to call when nothing was set.</summary>
     public void Release()
