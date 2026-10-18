@@ -35,6 +35,9 @@ public sealed class Configuration : IPluginConfiguration
 
     public bool ProgressLeveling { get; set; }
 
+    /// <summary>Characters (by content id) that said "don't ask again" to the offer to unlock Beastmaster.</summary>
+    public List<ulong> UnlockOfferDeclined { get; set; } = [];
+
     /// <summary>Every run per character (by content id), oldest first, capped at <see cref="HistoryCap"/>.</summary>
     public Dictionary<ulong, List<RunRecord>> Runs { get; set; } = [];
 

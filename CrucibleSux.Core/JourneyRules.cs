@@ -17,6 +17,16 @@ public enum BoardEnd
 public static class JourneyRules
 {
     /// <summary>
+    /// Whether to offer to unlock Beastmaster: "Strangers in the Wood" is not finished, and the character can take it
+    /// (the main scenario through <see cref="QuestScripts.UnlockPrerequisite"/> and another combat job at its level).
+    /// </summary>
+    public static bool CanOfferUnlock(ProgressionState s)
+    {
+        var unlock = QuestScripts.ById(CrucibleIds.Quests.StrangersInTheWood);
+        return !s.IsComplete(unlock.Id) && s.IsComplete(unlock.PreviousQuest) && s.HighestCombatLevel >= unlock.Level;
+    }
+
+    /// <summary>
     /// What the stuck check compares between ticks. It changes only when the game shows progress: a new activity or quest
     /// sequence (both in <paramref name="activityKey"/>), a level, EXP, a beast, an item, or a new zone.
     /// </summary>

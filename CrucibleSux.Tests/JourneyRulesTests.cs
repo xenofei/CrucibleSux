@@ -21,6 +21,23 @@ public class JourneyRulesTests
         new(T, T.AddMinutes(10), [.. runs.Select(o => new RunRecord(T, TimeSpan.FromMinutes(5), 1, 1, o, false, string.Empty))], goal, "Ended.");
 
     [Fact]
+    public void Unlocking_is_offered_only_to_a_character_who_can_take_the_quest_and_has_not_finished_it()
+    {
+        static ProgressionState Char(int combat, bool prerequisite, QuestState unlock) =>
+            new(0, combat, new Dictionary<uint, QuestProgress>
+            {
+                [QuestScripts.UnlockPrerequisite] = new(prerequisite ? QuestState.Complete : QuestState.NotStarted, 0),
+                [CrucibleIds.Quests.StrangersInTheWood] = new(unlock, 1),
+            }, new HashSet<uint>(), new HashSet<int>(), new Dictionary<uint, int>());
+
+        Assert.True(JourneyRules.CanOfferUnlock(Char(50, true, QuestState.NotStarted)));
+        Assert.True(JourneyRules.CanOfferUnlock(Char(90, true, QuestState.Accepted)));
+        Assert.False(JourneyRules.CanOfferUnlock(Char(50, true, QuestState.Complete)));
+        Assert.False(JourneyRules.CanOfferUnlock(Char(49, true, QuestState.NotStarted)));
+        Assert.False(JourneyRules.CanOfferUnlock(Char(50, false, QuestState.NotStarted)));
+    }
+
+    [Fact]
     public void Progress_is_the_same_for_the_same_game_state() =>
         Assert.Equal(JourneyRules.Progress("k", State(), 100, 148), JourneyRules.Progress("k", State(), 100, 148));
 

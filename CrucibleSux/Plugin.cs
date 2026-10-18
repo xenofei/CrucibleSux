@@ -8,6 +8,7 @@ using CrucibleSux.Game;
 using CrucibleSux.Integrations;
 using CrucibleSux.Ui;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
 using Dalamud.IoC;
@@ -55,6 +56,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly AggroController aggro;
     private readonly BossModGate bossMod;
     private readonly BossModPrompt bossModPrompt;
+    private readonly UnlockPrompt unlockPrompt;
 
     /// <summary>Text "/sux report" copies on the next frame: the clipboard is only reachable while ImGui draws.</summary>
     private string? pendingCopy;
@@ -83,9 +85,11 @@ public sealed class Plugin : IDalamudPlugin
         this.bossModPrompt = new BossModPrompt(this.bossMod);
         var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save, this.StartSession);
         this.mainWindow = new MainWindow(this.session, data, this.config, this.bestiary, sessionTabs,
-            new JourneyTab(this.journey, this.config, this.Save, this.StartJourney), new LogTab(this.recorder, this.config, this.Save), this.Save);
+            new JourneyTab(this.journey, this.config, this.Save, () => this.StartJourney()), new LogTab(this.recorder, this.config, this.Save), this.Save);
         this.windowSystem.AddWindow(this.mainWindow);
         this.windowSystem.AddWindow(this.bossModPrompt);
+        this.unlockPrompt = new UnlockPrompt(this.journey, this.config, this.Save, () => this.StartJourney(unlockOnly: true));
+        this.windowSystem.AddWindow(this.unlockPrompt);
 
         var help = new CommandInfo(this.OnCommand)
         {
@@ -128,6 +132,9 @@ public sealed class Plugin : IDalamudPlugin
             this.bossModPrompt.IsOpen = true;
         this.runner.Update();
         this.journey.Update();
+        this.unlockPrompt.Update(PlayerState.IsLoaded ? PlayerState.ContentId : 0,
+            this.runner.Current is null && !this.journey.Running && this.bossMod.Asking is null
+            && !Condition[ConditionFlag.InCombat] && !Condition[ConditionFlag.BoundByDuty]);
         this.picker.Update();
         this.aggro.Update();
         this.recorder.Update();
@@ -246,7 +253,8 @@ public sealed class Plugin : IDalamudPlugin
             ChatGui.PrintError($"[Crucible SUX] {check.Label}: {check.Detail}");
     }
 
-    private void StartJourney()
+    /// <param name="unlockOnly">Only unlock Beastmaster (the unlock offer), whatever the journey's parts say.</param>
+    private void StartJourney(bool unlockOnly = false)
     {
         if (this.journey.Running)
         {
@@ -255,14 +263,14 @@ public sealed class Plugin : IDalamudPlugin
         }
         this.bossMod.Run("the journey", () =>
         {
-            var problems = this.journey.Checks(beforeSwitch: true);
+            var problems = this.journey.Checks(beforeSwitch: true, unlockOnly: unlockOnly);
             if (problems.Count > 0)
                 PrintJourneyProblems(problems);
             return problems.Count == 0;
         }, () =>
         {
-            if (!this.journey.Start())
-                PrintJourneyProblems(this.journey.Checks());
+            if (!this.journey.Start(unlockOnly))
+                PrintJourneyProblems(this.journey.Checks(unlockOnly: unlockOnly));
         });
     }
 

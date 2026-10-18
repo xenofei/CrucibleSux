@@ -147,7 +147,12 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>Why the last run ended.</summary>
     public string? LastResult { get; private set; }
 
-    private ProgressionOptions Options => new(this.config.ProgressQuests, this.config.ProgressBeasts, this.config.ProgressLeveling);
+    /// <summary>Only "Strangers in the Wood" and the job's gear setup, then stop (the unlock offer).</summary>
+    private bool unlockOnly;
+
+    private ProgressionOptions Options => this.unlockOnly
+        ? new(Quests: true, Beasts: false, Leveling: false)
+        : new(this.config.ProgressQuests, this.config.ProgressBeasts, this.config.ProgressLeveling);
 
     public void Dispose()
     {
@@ -159,12 +164,13 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// What stops the journey from starting; empty when it can start. <paramref name="beforeSwitch"/> ignores the BossMod the
     /// player does not use, which <see cref="BossModGate"/> turns off before the start.
     /// </summary>
-    public IReadOnlyList<string> Checks(bool beforeSwitch = false)
+    /// <param name="unlockOnly">Checks for <see cref="Start"/> in unlock-only mode, which needs none of the parts turned on.</param>
+    public IReadOnlyList<string> Checks(bool beforeSwitch = false, bool unlockOnly = false)
     {
         var problems = new List<string>();
         if (this.game.Me is null)
             problems.Add("Log in to a character.");
-        if (!this.Options.Any)
+        if (!unlockOnly && !this.Options.Any)
             problems.Add("Turn on at least one part of the journey.");
         if (!this.Loaded("vnavmesh"))
             problems.Add("vnavmesh must be installed and enabled: it does the walking.");
@@ -189,10 +195,15 @@ public sealed unsafe class ProgressionRunner : IDisposable
         return this.Plan(state);
     }
 
-    public bool Start()
+    /// <summary>Whether the character can unlock Beastmaster and has not yet (<see cref="JourneyRules.CanOfferUnlock"/>).</summary>
+    public bool CanUnlock() => this.reader.Capture(out _) is { } state && JourneyRules.CanOfferUnlock(state);
+
+    /// <param name="unlockOnly">Do "Strangers in the Wood" and set Beastmaster's gear up, then stop, whatever the parts say.</param>
+    public bool Start(bool unlockOnly = false)
     {
-        if (this.Running || this.Checks().Count > 0)
+        if (this.Running || this.Checks(unlockOnly: unlockOnly).Count > 0)
             return false;
+        this.unlockOnly = unlockOnly;
         this.Running = true;
         this.failures = 0;
         this.skipped.Clear();
@@ -212,6 +223,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (!this.Running)
             return;
         this.Running = false;
+        this.unlockOnly = false;
         this.Reset();
         if (this.boardRun != 0 && this.boards.Current is not null)
             this.boards.Stop(reason);
@@ -266,6 +278,12 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (beastsUnknown)
         {
             this.Wait(now, "Open the Master's Bestiary once so the game sends your beast list.");
+            return;
+        }
+        if (this.unlockOnly && state.IsComplete(CrucibleIds.Quests.StrangersInTheWood))
+        {
+            if (this.EnsureJob(now))
+                this.Stop("Beastmaster is unlocked and its gear is set up.", done: true);
             return;
         }
 

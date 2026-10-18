@@ -17,6 +17,8 @@
   - The one you use covers mechanics. The other one is turned off for the run and back on afterwards, the same way the original BossMod was in 0.2.3; that question is part of the same window.
   - Right after AutoDuty starts a board, Crucible SUX sets BossMod's "prevent moving while casting" back to off. AutoDuty turns it on when it manages BossMod's AI, and the original BossMod obeys it even while your rotation plugin fights, so you could not dodge while casting. AutoDuty restores your own value when it stops.
   - The combat log header says which BossMod is in use.
+- **Unlock Beastmaster for you:** when a character can take "Strangers in the Wood" (the main scenario through "The Ultimate Weapon" and another combat job at level 50) and has not finished it, Crucible SUX offers to pick the quest up and play it through, then switch to Beastmaster and set up its gear. It stops there; the rest of the journey stays as the Journey tab sets it.
+  - It asks once per character per game session, and only while nothing runs and you are out of combat and duties. "Don't ask again for this character" turns the offer off for good.
 - **Tested versions:** the Plugins tab warns when a companion plugin is older than the release Crucible SUX was last checked against (vnavmesh 1.2.3.14, Rotation Solver Reborn 7.5.7.3, BossMod Reborn 7.5.7.1, BossMod 7.5.7.0, AutoDuty 0.0.0.389, Lifestream 2.6.0.7, TextAdvance 3.3.0.1).
 
 ### Changed
