@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Flying in circles after a mob:** still mounted in the air from a trip, the character chased a Trickster Imp with flying paths, which take 8-9 s each to compute and ran 130-160 y for a target 30 y away. It never landed or attacked, and it asked for a new path every second while vnavmesh was still computing the last one. A chase now lands first and goes on the ground, mounted or on foot, getting off in reach. It waits while a path is being computed.
+
 ## [0.3.18] - 2026-10-18
 
 ### Fixed

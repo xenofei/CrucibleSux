@@ -1141,6 +1141,15 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>Walks into melee range of a moving target; true when there.</summary>
     private bool Chase(DateTime now, IGameObject target)
     {
+        // Airborne: land first. A flying path takes seconds to compute and wanders at short range; the chase goes on the ground.
+        if (this.game.InFlight)
+        {
+            if (this.nav.IsBusy)
+                this.nav.Stop();
+            if (this.Ready(now, 1.5))
+                this.game.UseGeneral(GameActions.Dismount);
+            return false;
+        }
         float distance = this.game.DistanceTo(target.Position) - target.HitboxRadius;
         if (distance <= MeleeRange)
         {
@@ -1157,10 +1166,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
         // the game's low background frame rate. So a path is kept while it still ends near the target.
         var path = this.nav.IsBusy ? this.nav.Waypoints : [];
         bool leadsThere = path.Count > 0 && Vector3.Distance(path[^1], target.Position) <= ChaseRepathBeyond;
-        if (!leadsThere && now >= this.nextChase)
+        if (!leadsThere && !this.nav.Pathfinding && now >= this.nextChase)
         {
             this.nextChase = now + TimeSpan.FromSeconds(1);
-            this.nav.MoveCloseTo(target.Position, MeleeRange - 0.5f + target.HitboxRadius, fly: this.game.InFlight);
+            this.nav.MoveCloseTo(target.Position, MeleeRange - 0.5f + target.HitboxRadius);
         }
         return false;
     }

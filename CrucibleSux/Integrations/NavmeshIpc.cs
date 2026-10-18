@@ -25,6 +25,9 @@ public sealed class NavmeshIpc(IDalamudPluginInterface pi, IPluginLog log)
 
     public bool IsReady => this.Call(() => this.isReady.InvokeFunc(), false);
 
+    /// <summary>True while a path is being computed (a flying one can take several seconds); asking again meanwhile is refused.</summary>
+    public bool Pathfinding => this.Call(() => this.pathfindInProgress.InvokeFunc(), false);
+
     /// <summary>True while a path is being computed or walked.</summary>
     public bool IsBusy => this.Call(() => this.pathfindInProgress.InvokeFunc() || this.isRunning.InvokeFunc(), false);
 
