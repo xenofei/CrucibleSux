@@ -41,6 +41,16 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
 
     /// <summary>This trip goes on the ground: a flight to it stopped short (a ledge, an overhang, a no-fly pocket).</summary>
     private bool groundOnly;
+
+    /// <summary>Where and when the character last made progress on this trip, to notice it wedged in place.</summary>
+    private (DateTime At, Vector3 Pos)? progress;
+
+    private int stuck;
+
+    /// <summary>Wedged even on the ground: the trip teleports out to the aetheryte nearest the destination.</summary>
+    private bool unstickTeleport;
+
+    private static readonly TimeSpan StuckAfter = TimeSpan.FromSeconds(4);
     private Vector3? resolved;
     private (uint Territory, Vector3 Point)? target;
 
@@ -54,7 +64,9 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         this.target = null;
         this.resolved = null;
         this.teleportedAt = null;
-        this.flying = this.groundOnly = false;
+        this.flying = this.groundOnly = this.unstickTeleport = false;
+        this.progress = null;
+        this.stuck = 0;
         this.Problem = null;
     }
 
@@ -92,6 +104,44 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
                 nav.Stop();
             return TravelState.Arrived;
         }
+        // Not getting anywhere (wedged under an overhang, against a rock): land first, then teleport out.
+        if (nav.IsReady && !nav.Pathfinding)
+        {
+            var here = game.Me.Position;
+            if (this.progress is not { } p || Vector3.Distance(p.Pos, here) >= 1f)
+            {
+                this.progress = (now, here);
+            }
+            else if (now - p.At > StuckAfter)
+            {
+                this.progress = (now, here);
+                this.stuck++;
+                if (nav.IsBusy)
+                    nav.Stop();
+                if (this.stuck == 1 && game.Mounted && !this.groundOnly)
+                {
+                    this.groundOnly = true;
+                    Plugin.Log.Information("Travel: not moving; landing and going on the ground");
+                }
+                else
+                {
+                    this.unstickTeleport = true;
+                    Plugin.Log.Information("Travel: still not moving; teleporting out");
+                }
+            }
+        }
+        if (this.unstickTeleport)
+        {
+            var state = this.Teleport(territory, d, now);
+            if (this.teleportedAt is not null)
+            {
+                this.unstickTeleport = this.groundOnly = false;
+                this.stuck = 0;
+                this.progress = null;
+            }
+            return state;
+        }
+
         // On foot only: a mounted character stays mounted and rides on.
         if (!game.Mounted && distance > TeleportWithinBeyond && this.Aetheryte(territory, d) is { } near && near.Distance + TeleportSaves < distance)
             return this.Teleport(territory, d, now);

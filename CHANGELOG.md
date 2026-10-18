@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Wedged in place:** under an overhang, a flying mount could not follow vnavmesh's path out and sat still while it should have been moving.
+  - Travel now notices when the character has not moved a yalm in 4 s, not counting the time a path is being computed.
+  - First it lands and goes on the ground.
+  - If it is still stuck, it teleports out to the attuned aetheryte nearest the destination and carries on from there.
+
 ## [0.3.19] - 2026-10-18
 
 ### Fixed
