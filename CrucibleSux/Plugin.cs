@@ -149,7 +149,8 @@ public sealed class Plugin : IDalamudPlugin
         {
             $"Crucible SUX {PluginInterface.Manifest.AssemblyVersion}, client language {ClientState.ClientLanguage}, mode: {mode}",
             $"Settings: {this.config.BoardRunOptions()}, kill dangerous adds first: {(this.config.PickTargets ? "on" : "off")}, " +
-                $"share aggro: {(this.config.ShareAggro ? $"on (floors you {this.config.PlayerFloor}%, familiar {this.config.BeastFloor}%)" : "off")}",
+                $"share aggro: {(this.config.ShareAggro ? $"on (floors you {this.config.PlayerFloor}%, familiar {this.config.BeastFloor}%)" : "off")}, " +
+                $"heal with potions: {(this.config.UseItems ? "on" : "off")}",
         };
         if (this.bossMod.TurnedOff)
             lines.Add($"The original BossMod is turned off for this run{(this.bossMod.RebornReloaded ? "; BossMod Reborn was reloaded" : string.Empty)}");

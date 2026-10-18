@@ -8,6 +8,15 @@
   - **Safety first:** whoever would fall below its HP floor in the next 15 s hands off. The floors are Settings (you 35%, the familiar 15%). The expected loss starts at 25% per window and then follows the damage each of you actually takes; a tankbuster cast from the enemy intel triggers an early handoff.
   - **Then score:** when both are safe, the one whose lost HP costs fewer points tanks (Selfless 1,000, Self-preservation 250, nothing when a campsite comes before the boss). Ties go to the beast.
   - Each handoff and its reason goes into the combat log. While an enemy has the mechanic Rotation Solver Reborn's Beastmaster rotation Snarls for, aggro is left to it.
+  - When neither of you is safe, the familiar takes the hits: your death ends the board, a KO'd beast costs about 250 points.
+- **Heal with Beast Potions (Settings, on by default):** AutoDuty drinks potions only from your HP, which barely drops while a familiar covers you, and never heals a familiar. Crucible SUX now drinks them itself in board battles:
+  - before a KO: for you below your floor, and for the familiar when the next 15 s would KO it and no handoff can save it
+  - at the end of the final battle (boss below 15%): to bring the team and you to 100% when Selfless or Self-preservation is worth more than the Economic Ethos (750) a first potion costs; after any item has been used, further potions cost nothing
+  - each potion and its reason goes into the combat log
+
+### Changed
+
+- `/sux report` copies the latest board's log, not the short "outside the boards" log a session records on the way out.
 
 ## [0.2.3] - 2026-10-11
 

@@ -59,6 +59,9 @@ public sealed class Configuration : IPluginConfiguration
 
     public int BeastFloor { get; set; } = (int)AggroAdvisor.DefaultBeastFloor;
 
+    /// <summary>In a board battle, drink Beast Potions for you or the familiar when <see cref="HealAdvisor"/> says so.</summary>
+    public bool UseItems { get; set; } = true;
+
     /// <summary>Record casts, hits, movement and windows while in a board or while a run is going, for bug reports.</summary>
     public bool RecordCombat { get; set; } = true;
 

@@ -32,6 +32,15 @@ public class TacticsTests
     }
 
     [Fact]
+    public void When_neither_is_safe_the_familiar_takes_the_hits()
+    {
+        // The character keeps more HP after the projected loss, but its death would end the board.
+        var d = new AggroAdvisor().Decide(View(60, 30, Actor.Player, Lost));
+
+        Assert.Equal(AggroAction.Snarl, d.Action);
+    }
+
+    [Fact]
     public void Measured_damage_replaces_the_default_25_percent()
     {
         var fresh = new AggroAdvisor();

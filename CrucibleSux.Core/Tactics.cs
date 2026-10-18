@@ -222,8 +222,9 @@ public sealed class AggroAdvisor
         }
         else if (!safeP)
         {
-            want = v.PlayerHp - lossP > beastHp - lossB ? Actor.Player : Actor.Beast;
-            why = $"neither is safe; {Name(want)} keeps more HP";
+            // The character's death loses the board; a KO'd beast costs about 250 (No Beast Left Behind for Willing Sacrifice III).
+            want = Actor.Beast;
+            why = "neither is safe; the familiar takes it, since your death ends the board";
         }
         else
         {
@@ -282,6 +283,9 @@ public static class HealAdvisor
 {
     /// <summary>Boss HP% below which the final battle's top-up starts.</summary>
     public const double BossLow = 15;
+
+    /// <summary>The Beast Potions by XBMItem row, and the HP% each restores to you or a familiar.</summary>
+    public static readonly IReadOnlyDictionary<uint, int> Potions = new Dictionary<uint, int> { [76] = 10, [77] = 23, [78] = 36, [79] = 50 };
 
     public static HealDecision? Decide(HealView v)
     {

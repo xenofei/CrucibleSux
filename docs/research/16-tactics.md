@@ -85,7 +85,8 @@ Projected loss over the next window:
 ## 3. Choosing the tank (every time the shared cooldown is ready)
 
 1. **Safety first.** If only one actor is safe, it tanks.
-2. **Neither safe:** the one with more HP after the projected loss tanks, and the heal rule (§4) runs.
+2. **Neither safe:** the beast tanks, and the heal rule (§4) runs. The character's death loses the board, while a KO'd
+   beast costs about 250: No Beast Left Behind (1,000) traded for Willing Sacrifice III (750).
 3. **Both safe:** the cheaper one in score tanks. The cost of letting actor X take this window's damage:
    - **Beast:**
      - 0 if Selfless is already lost (a beast is KO'd, or below 100% with no recovery left before the clear)

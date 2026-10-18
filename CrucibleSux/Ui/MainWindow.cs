@@ -415,6 +415,13 @@ public sealed class MainWindow : Window
             if (ImGui.IsItemHovered())
                 ImGui.SetTooltip("The familiar stops tanking before the next 15 s could take it below this. A KO costs No Beast Left Behind.");
         }
+        bool items = this.config.UseItems;
+        if (ImGui.Checkbox("Heal with Beast Potions", ref items))
+        {
+            this.config.UseItems = items;
+            this.save();
+        }
+        ImGui.TextDisabled("Heals you or the familiar before a KO, and at the end of the final battle when Selfless or Self-preservation is worth the Economic Ethos a potion costs.");
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Rankings");
