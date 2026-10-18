@@ -108,6 +108,9 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
     /// <summary>Action 7, "attack": toggles auto-attack, so it is only sent while auto-attack is off.</summary>
     public const uint AutoAttack = 7;
 
+    /// <summary>General action 1, the hotbar's "Auto-attack": the same toggle, on the current target.</summary>
+    public const uint AutoAttackGeneral = 1;
+
     public bool IsAutoAttacking
     {
         get

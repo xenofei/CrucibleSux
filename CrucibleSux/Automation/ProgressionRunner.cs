@@ -125,6 +125,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private Vector3? fleeTo;
     private bool wasDead;
     private (uint Status, uint Action) lastRefusal;
+    private (CaptureMove Move, bool InReach) captureStep;
 
     public ProgressionRunner(
         ProgressionReader reader,
@@ -1100,15 +1101,28 @@ public sealed unsafe class ProgressionRunner : IDisposable
         bool marked = GameActions.HasStatus(target, GameActions.InterestCaptured);
         var move = CaptureTactics.Decide(hp, s.JobLevel - target.Level, marked);
         this.Say($"Capturing a {src.Name}: {move switch { CaptureMove.Weaken => "wearing it down", CaptureMove.Capture => "using Capture", _ => "finishing it" }} (HP {hp}%).");
-        if (!this.Chase(now, target))
+        bool inReach = this.Chase(now, target);
+        if ((move, inReach) != this.captureStep)
+        {
+            Plugin.Log.Information($"Journey: capture of a {src.Name} (level {target.Level}, HP {hp}%): {move}, {(inReach ? "in reach" : $"{this.game.DistanceTo(target.Position):0.0} y away")}");
+            this.captureStep = (move, inReach);
+        }
+        if (!inReach)
             return;
         this.game.Target(target);
         switch (move)
         {
             case CaptureMove.Weaken:
                 this.rotation.Release();
-                if (!this.game.IsAutoAttacking && this.Ready(now, 1) && this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
+                if (this.game.IsAutoAttacking || !this.Ready(now, 1))
+                    break;
+                // The game has two auto-attack toggles; if it takes neither, Capture (an attack too) starts the fight.
+                if (this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
                     this.game.StartAutoAttack(target);
+                else if (this.game.UseGeneral(GameActions.AutoAttackGeneral))
+                    Plugin.Log.Information("Journey: auto-attack started from the hotbar action instead");
+                else if (!this.game.InCombat && this.Accepts(GameActions.Capture, target, "Capture"))
+                    this.game.UseAction(GameActions.Capture, target.GameObjectId);
                 break;
             case CaptureMove.Capture:
                 this.rotation.Release();

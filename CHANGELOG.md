@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A capture that never starts the fight:** in the play-test the character stood next to a ground squirrel for minutes and the game answered "Cannot execute at this time", because the auto-attack it sent was refused. If the game refuses the "attack" action, the journey now tries the hotbar's Auto-attack, and if that is refused too, it opens with Capture, which is an attack itself.
+  - Each capture step goes into the plugin log: the move, the HP, whether the beast is in reach, and any refusal with the game's code.
+
 ## [0.3.6] - 2026-10-18
 
 ### Changed
