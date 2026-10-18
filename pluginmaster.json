@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.19.0",
+    "AssemblyVersion": "0.3.20.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.19/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.19/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.19/latest.zip",
-    "LastUpdate": 1792356557,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.20/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.20/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.20/latest.zip",
+    "LastUpdate": 1792356945,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Fixed\n\n- **Flying in circles after a mob:** still mounted in the air from a trip, the character chased a Trickster Imp with flying paths, which take 8-9 s each to compute and ran 130-160 y for a target 30 y away. It never landed or attacked, and it asked for a new path every second while vnavmesh was still computing the last one. A chase now lands first and goes on the ground, mounted or on foot, getting off in reach. It waits while a path is being computed."
+    "Changelog": "Fixed\n\n- **Wedged in place:** under an overhang, a flying mount could not follow vnavmesh's path out and sat still while it should have been moving.\n  - Travel now notices when the character has not moved a yalm in 4 s, not counting the time a path is being computed.\n  - First it lands and goes on the ground.\n  - If it is still stuck, it teleports out to the attuned aetheryte nearest the destination and carries on from there."
   }
 ]
