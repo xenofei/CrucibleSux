@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Standing still after a striking dummy step:** the dummy's fight lingers. Levelling waited for that fight to finish, and job changes, summons, teleports and talks all wait out combat, so the character stood next to the dummy. When a training dummy is all that keeps the character in combat, outside the dummy steps themselves, it now walks away until the game ends the fight, then carries on.
+- The dummy steps now start their auto-attack with the hotbar's Auto-attack; the "attack" action is refused in this patch.
+
 ## [0.3.12] - 2026-10-18
 
 ### Fixed

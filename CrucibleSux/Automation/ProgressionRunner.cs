@@ -405,6 +405,11 @@ public sealed unsafe class ProgressionRunner : IDisposable
             return;
         }
 
+        // A striking dummy's fight lingers after its quest step, and blocks job changes, summons, teleports and talks.
+        bool dummyStep = activity is { Kind: ActivityKind.Quest, Step.Kind: StepKind.FightDummy or StepKind.TemperedRelease or StepKind.Borrow };
+        if (!dummyStep && this.LeaveDummyCombat())
+            return;
+
         // A board run belongs to AutoDuty, including its windows.
         if (activity.Kind != ActivityKind.RunBoard && this.dialogue.Tick(this.Expect(activity, state)))
         {
@@ -813,8 +818,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.game.Target(dummy);
         if (this.game.UseAction(action, dummy.GameObjectId))
             return true;
+        // The hotbar's Auto-attack: the "attack" action is refused in this patch.
         if (!this.game.InCombat)
-            this.game.StartAutoAttack(dummy);
+            this.game.UseGeneral(GameActions.AutoAttackGeneral);
         return false;
     }
 
@@ -1026,6 +1032,24 @@ public sealed unsafe class ProgressionRunner : IDisposable
             }
         }
         this.wasInCombat = combat;
+    }
+
+    /// <summary>
+    /// Walks away from a striking dummy whose fight is all that keeps the character in combat, until the game ends it
+    /// (a dummy never dies, and does not pull again). True while it does.
+    /// </summary>
+    private bool LeaveDummyCombat()
+    {
+        if (!this.game.InCombat || this.game.Me is not { } me || this.Attackers().Count > 0)
+            return false;
+        var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
+        if (this.objects.OfType<IBattleNpc>().FirstOrDefault(o => GameActions.IsTrainingDummy(o) && ours.Contains(o.TargetObjectId)) is not { } dummy)
+            return false;
+        this.rotation.Release();
+        if (!this.nav.IsBusy)
+            this.nav.MoveTo(this.Away(me.Position, [dummy]), fly: this.game.InFlight);
+        this.Say("Walking away from the striking dummy so its fight ends.");
+        return true;
     }
 
     /// <summary>The living enemies attacking the player or the player's beast: the current target first, then nearest first.</summary>
