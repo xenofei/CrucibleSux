@@ -85,6 +85,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private readonly IChatGui chat;
     private readonly INotificationManager notifications;
     private readonly ExpMeter meter = new();
+    private readonly AoeDodger dodger;
     private readonly HashSet<uint> skipped = [];
 
     private DateTime nextTick;
@@ -187,6 +188,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.data = data;
         this.chat = chat;
         this.notifications = notifications;
+        this.dodger = new AoeDodger(objects, data, nav, game);
         this.client.Logout += this.OnLogout;
     }
 
@@ -363,6 +365,13 @@ public sealed unsafe class ProgressionRunner : IDisposable
             return;
         }
         this.Watch(now);
+
+        // An enemy area attack covering the character comes before everything else.
+        if (this.dodger.Tick())
+        {
+            this.Say($"Stepping out of {this.dodger.Dodging}.");
+            return;
+        }
 
         if (this.goal == JourneyGoal.Crucible && state.IsComplete(CrucibleIds.Quests.IntoTheCrucible))
         {

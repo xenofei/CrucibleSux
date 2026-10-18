@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Dodging area attacks during the journey:** BossMod's AI dodges only in the boards, where AutoDuty switches it on, and only with fight modules, which overworld mobs do not have.
+  - When an enemy starts casting an area attack that covers the character, the journey now steps out first: circles, donuts, cones, lines and crosses, sized from the game's own action data.
+  - It walks to the nearest spot within 25 y that clears every area being cast and that vnavmesh can reach, then carries on.
+  - The rotation keeps fighting meanwhile.
+  - An arena-wide attack, with nowhere within reach out of it, is not dodged.
+
 ## [0.3.20] - 2026-10-18
 
 ### Fixed
