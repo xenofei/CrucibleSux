@@ -50,6 +50,15 @@ public class ProgressionTests
     }
 
     [Fact]
+    public void The_unlock_quest_needs_Dawntrail()
+    {
+        var a = ProgressionPlanner.Next(State(level: 0, owned: []) with { MaxExpansion = 4 }, All);
+
+        Assert.Equal(ActivityKind.Blocked, a.Kind);
+        Assert.Contains("Dawntrail", a.Why);
+    }
+
+    [Fact]
     public void Beasts_alone_cannot_unlock_the_job()
     {
         var a = ProgressionPlanner.Next(State(level: 0, owned: []), new(false, true, true));

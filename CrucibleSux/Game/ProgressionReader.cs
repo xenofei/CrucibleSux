@@ -67,7 +67,9 @@ public sealed class ProgressionReader(IPlayerState player, IDataManager data)
         var counts = Items.ToDictionary(i => i, i => inventory == null ? 0 : inventory->GetInventoryItemCount(i));
         var cleared = Boards.All.Where(b => UIState.IsInstanceContentCompleted(b.InstanceContent)).Select(b => b.Number).ToHashSet();
 
-        return new ProgressionState(jobLevel, highest, quests, owned, cleared, counts);
+        var ps = PlayerState.Instance();
+        int expansion = ps == null ? 0 : ps->MaxExpansion;
+        return new ProgressionState(jobLevel, highest, quests, owned, cleared, counts, expansion);
     }
 
     /// <summary>EXP into the current Beastmaster level.</summary>

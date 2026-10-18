@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- The Beastmaster unlock offer and the journey now check that Dawntrail is installed and registered on the account. "Strangers in the Wood" belongs to Dawntrail, so the game refuses it otherwise; Crucible SUX offered it anyway, and the journey would have walked to a quest it could not accept. The Journey tab now says what is missing.
+
 ## [0.3.0] - 2026-10-18
 
 ### Added

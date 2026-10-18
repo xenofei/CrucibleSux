@@ -23,18 +23,20 @@ public class JourneyRulesTests
     [Fact]
     public void Unlocking_is_offered_only_to_a_character_who_can_take_the_quest_and_has_not_finished_it()
     {
-        static ProgressionState Char(int combat, bool prerequisite, QuestState unlock) =>
+        static ProgressionState Char(int combat, bool prerequisite, QuestState unlock, int expansion = CrucibleIds.Dawntrail) =>
             new(0, combat, new Dictionary<uint, QuestProgress>
             {
                 [QuestScripts.UnlockPrerequisite] = new(prerequisite ? QuestState.Complete : QuestState.NotStarted, 0),
                 [CrucibleIds.Quests.StrangersInTheWood] = new(unlock, 1),
-            }, new HashSet<uint>(), new HashSet<int>(), new Dictionary<uint, int>());
+            }, new HashSet<uint>(), new HashSet<int>(), new Dictionary<uint, int>(), expansion);
 
         Assert.True(JourneyRules.CanOfferUnlock(Char(50, true, QuestState.NotStarted)));
         Assert.True(JourneyRules.CanOfferUnlock(Char(90, true, QuestState.Accepted)));
         Assert.False(JourneyRules.CanOfferUnlock(Char(50, true, QuestState.Complete)));
         Assert.False(JourneyRules.CanOfferUnlock(Char(49, true, QuestState.NotStarted)));
         Assert.False(JourneyRules.CanOfferUnlock(Char(50, false, QuestState.NotStarted)));
+        // Endwalker is the latest expansion registered: the game refuses the quest.
+        Assert.False(JourneyRules.CanOfferUnlock(Char(90, true, QuestState.NotStarted, expansion: 4)));
     }
 
     [Fact]

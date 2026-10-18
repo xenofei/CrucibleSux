@@ -9,6 +9,12 @@ public static class CrucibleIds
 {
     public const uint BeastmasterJob = 43;
 
+    /// <summary>
+    /// ExVersion row of Dawntrail, the expansion every Beastmaster quest belongs to (Quest.Expansion of 71026-71045). The game
+    /// refuses "Strangers in the Wood" until it is installed and registered.
+    /// </summary>
+    public const int Dawntrail = 5;
+
     /// <summary>Central Shroud, where Lauda admits players to the Crucible (near Bentbranch Meadows).</summary>
     public const uint LaudaTerritory = 148;
 

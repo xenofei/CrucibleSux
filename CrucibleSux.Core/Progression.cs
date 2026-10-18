@@ -14,13 +14,15 @@ public readonly record struct QuestProgress(QuestState State, byte Sequence);
 /// <param name="HighestCombatLevel">The highest Disciple of War or Magic level on any other job (for the unlock quest).</param>
 /// <param name="Owned">Beasts (XBMPet rows) befriended.</param>
 /// <param name="Inventory">Counts of the items the planner cares about: gourds and remnants.</param>
+/// <param name="MaxExpansion">The latest expansion (ExVersion row) the account has installed and registered.</param>
 public sealed record ProgressionState(
     int JobLevel,
     int HighestCombatLevel,
     IReadOnlyDictionary<uint, QuestProgress> Quests,
     IReadOnlySet<uint> Owned,
     IReadOnlySet<int> ClearedBoards,
-    IReadOnlyDictionary<uint, int> Inventory)
+    IReadOnlyDictionary<uint, int> Inventory,
+    int MaxExpansion = CrucibleIds.Dawntrail)
 {
     public QuestProgress Quest(uint id) => this.Quests.TryGetValue(id, out var q) ? q : default;
 
@@ -120,6 +122,8 @@ public static class ProgressionPlanner
 
             if (q.AnyJob)
             {
+                if (s.MaxExpansion < CrucibleIds.Dawntrail)
+                    return new(ActivityKind.Blocked, $"{q.Name} needs Dawntrail installed and registered on this account.", q.Id);
                 if (q.PreviousQuest != 0 && !s.IsComplete(q.PreviousQuest))
                     return new(ActivityKind.Blocked, $"{q.Name} needs the main scenario through \"The Ultimate Weapon\" first.", q.Id);
                 if (s.HighestCombatLevel < q.Level)
