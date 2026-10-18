@@ -1,11 +1,15 @@
 using CrucibleSux.Automation;
+using CrucibleSux.Core;
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Windowing;
 
 namespace CrucibleSux.Ui;
 
-/// <summary>Asks before the original BossMod is turned off for a session or the journey.</summary>
-public sealed class BossModPrompt(BossModGate gate) : Window("Crucible SUX: the original BossMod###CrucibleSuxBossMod", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse)
+/// <summary>
+/// Asks which BossMod the player uses (once), and before the other one is turned off for a session or the journey. When
+/// both are needed, answering the first counts for the second.
+/// </summary>
+public sealed class BossModPrompt(BossModGate gate) : Window("Crucible SUX: BossMod###CrucibleSuxBossMod", ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.NoCollapse)
 {
     private bool remember;
 
@@ -17,17 +21,32 @@ public sealed class BossModPrompt(BossModGate gate) : Window("Crucible SUX: the 
             return;
         }
         ImGui.PushTextWrapPos(ImGui.GetFontSize() * 32f);
-        ImGui.TextWrapped("The original BossMod is loaded. It blocks movement while you cast, so your character cannot dodge, " +
-                          "and it can take the commands AutoDuty means for BossMod Reborn.");
+        if (gate.Choosing)
+        {
+            ImGui.TextUnformatted("Which BossMod do you use?");
+            ImGui.Spacing();
+            ImGui.TextWrapped("Both answer AutoDuty under the same names, so only one may be loaded during a run. Crucible SUX keeps the one you use, " +
+                              $"turns the other off when {what} starts if it is loaded, and back on when {what} ends. You can change this in Settings.");
+        }
+        else
+        {
+            ImGui.TextWrapped($"You use {BossModSwitch.Name(gate.Kept)}, and {BossModSwitch.Name(gate.Off)} is loaded too. Both answer AutoDuty under the same " +
+                              $"names, so only one may be loaded during a run. Crucible SUX can turn it off now and back on when {what} ends.");
+        }
         ImGui.Spacing();
-        ImGui.TextWrapped($"Crucible SUX can turn it off now and back on when {what} ends. It uses Dalamud's temporary switch: " +
-                          "your plugin settings do not change, and restarting the game turns it back on as well. " +
-                          "BossMod Reborn may be reloaded once so that AutoDuty can reach it.");
+        ImGui.TextWrapped("It uses Dalamud's temporary switch: your plugin settings do not change, and restarting the game turns it back on as well. " +
+                          "The BossMod you use may be reloaded once so that AutoDuty can reach it.");
         ImGui.PopTextWrapPos();
         ImGui.Spacing();
-        ImGui.Checkbox("Do this without asking next time", ref this.remember);
+        ImGui.Checkbox("Turn the other BossMod off without asking next time", ref this.remember);
         ImGui.Spacing();
-        if (ImGui.Button($"Turn it off and start {what}"))
+        if (gate.Choosing)
+        {
+            this.Choice(BossModChoice.Reborn, $"BossMod Reborn ({gate.State(BossModSwitch.Reborn)})");
+            ImGui.SameLine();
+            this.Choice(BossModChoice.Original, $"The original BossMod ({gate.State(BossModSwitch.Original)})");
+        }
+        else if (ImGui.Button($"Turn it off and start {what}"))
         {
             gate.Accept(this.remember);
             this.IsOpen = false;
@@ -42,4 +61,13 @@ public sealed class BossModPrompt(BossModGate gate) : Window("Crucible SUX: the 
 
     /// <summary>Closing the window (its X or Escape) counts as Cancel.</summary>
     public override void OnClose() => gate.Decline();
+
+    private void Choice(BossModChoice choice, string label)
+    {
+        if (ImGui.Button(label))
+        {
+            gate.Choose(choice, this.remember);
+            this.IsOpen = false;
+        }
+    }
 }

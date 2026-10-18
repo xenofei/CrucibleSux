@@ -14,6 +14,9 @@ namespace CrucibleSux.Ui;
 /// <summary>The dashboard: progress, the one-sitting check, beasts, team suggestions, companion plugins and settings.</summary>
 public sealed class MainWindow : Window
 {
+    /// <summary>The <see cref="BossModChoice"/> names, by value.</summary>
+    private static readonly string[] BossModChoices = ["Not chosen yet (asked at the next start)", "BossMod Reborn", "The original BossMod"];
+
     private readonly Session session;
     private readonly CrucibleData data;
     private readonly Configuration config;
@@ -306,8 +309,9 @@ public sealed class MainWindow : Window
 
     private void DrawPlugins()
     {
-        ImGui.TextWrapped("A session drives AutoDuty, which walks to Lauda, sets up the team, moves across the board and switches the rotation plugin and BossMod Reborn's AI on for each board. " +
-                           "The original BossMod must be off during a run: Crucible SUX offers to turn it off when a session or the journey starts and back on when it ends.");
+        ImGui.TextWrapped("A session drives AutoDuty, which walks to Lauda, sets up the team, moves across the board and switches the rotation plugin and BossMod's AI on for each board. " +
+                           "Both BossMods answer AutoDuty under the same names, so only the one you use may be loaded during a run: Crucible SUX offers to turn the other off when a session or the journey starts and back on when it ends.");
+        ImGui.TextUnformatted($"BossMod you use: {BossModChoices[(int)this.config.MechanicsPlugin]} (Settings)");
         foreach (var role in this.session.Dependencies)
         {
             ImGui.Spacing();
@@ -346,8 +350,23 @@ public sealed class MainWindow : Window
             this.save();
         }
         ImGui.TextDisabled("Inside a board, a run with no movement, combat, HP or window change for this long is stopped.");
+        ImGui.SetNextItemWidth(260f);
+        using (var combo = ImRaii.Combo("BossMod you use", BossModChoices[(int)this.config.MechanicsPlugin]))
+        {
+            if (combo)
+            {
+                foreach (var choice in new[] { BossModChoice.Reborn, BossModChoice.Original })
+                {
+                    if (ImGui.Selectable(BossModChoices[(int)choice], choice == this.config.MechanicsPlugin))
+                    {
+                        this.config.MechanicsPlugin = choice;
+                        this.save();
+                    }
+                }
+            }
+        }
         bool turnOff = this.config.TurnOffBossMod;
-        if (ImGui.Checkbox("Turn the original BossMod off for runs without asking", ref turnOff))
+        if (ImGui.Checkbox("Turn the other BossMod off for runs without asking", ref turnOff))
         {
             this.config.TurnOffBossMod = turnOff;
             this.save();
@@ -420,7 +439,7 @@ public sealed class MainWindow : Window
     {
         ImGui.TextUnformatted("Crucible SUX: Set-and-forget Unbroken eXecutor");
         ImGui.Spacing();
-        ImGui.TextWrapped("Reads your progress, plans your sitting, and runs a queue of boards through AutoDuty, vnavmesh, a rotation plugin and BossMod Reborn. " +
+        ImGui.TextWrapped("Reads your progress, plans your sitting, and runs a queue of boards through AutoDuty, vnavmesh, a rotation plugin and BossMod. " +
                           "It watches every run, stops one that is stuck and reports what happened (docs/PLAN.md).");
         ImGui.Spacing();
         ImGui.TextWrapped("Unattended automation is against the game's terms of service. Use it at your own risk.");

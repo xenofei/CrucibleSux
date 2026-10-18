@@ -21,9 +21,21 @@ public enum DependencyRole
     Dialogs,
 }
 
+/// <summary>Which BossMod the player uses for mechanics; the other one is turned off for a run.</summary>
+public enum BossModChoice
+{
+    /// <summary>Not asked yet: counts as BossMod Reborn.</summary>
+    Unset,
+    Reborn,
+    Original,
+}
+
 /// <param name="RepoHint">A substring of the plugin's repo URL that marks the build with the features needed (e.g. a fork).</param>
 /// <param name="Conflict">Why this plugin must be disabled for the role: loaded, it fails the role even beside a good candidate.</param>
-public sealed record DependencyInfo(string InternalName, string DisplayName, DependencyRole Role, string Purpose, string RepoUrl, string? RepoHint = null, string? Conflict = null);
+/// <param name="TestedVersion">The release Crucible SUX was last checked against; an older one warns.</param>
+public sealed record DependencyInfo(
+    string InternalName, string DisplayName, DependencyRole Role, string Purpose, string RepoUrl, string? RepoHint = null, string? Conflict = null,
+    Version? TestedVersion = null);
 
 /// <summary>A plugin as Dalamud reports it.</summary>
 public sealed record InstalledPlugin(string InternalName, Version Version, bool IsLoaded, string? RepoUrl);
@@ -36,23 +48,38 @@ public static class DependencyCatalog
 {
     public static readonly IReadOnlyList<DependencyInfo> All =
     [
-        new("vnavmesh", "vnavmesh", DependencyRole.Navigation, "Pathing in the overworld", "https://github.com/awgil/ffxiv_navmesh"),
-        new("RotationSolver", "Rotation Solver Reborn", DependencyRole.Rotation, "Beastmaster rotation (shipped 2026-09-13)", "https://github.com/FFXIV-CombatReborn/RotationSolverReborn"),
-        new("BossModReborn", "BossMod Reborn", DependencyRole.Rotation, "Beastmaster rotation module (work in progress)", "https://github.com/FFXIV-CombatReborn/BossmodReborn"),
+        new("vnavmesh", "vnavmesh", DependencyRole.Navigation, "Pathing in the overworld", "https://github.com/awgil/ffxiv_navmesh", TestedVersion: new(1, 2, 3, 14)),
+        new("RotationSolver", "Rotation Solver Reborn", DependencyRole.Rotation, "Beastmaster rotation (shipped 2026-09-13)", "https://github.com/FFXIV-CombatReborn/RotationSolverReborn",
+            TestedVersion: new(7, 5, 7, 3)),
+        new("BossModReborn", "BossMod Reborn", DependencyRole.Rotation, "Beastmaster rotation module (work in progress)", "https://github.com/FFXIV-CombatReborn/BossmodReborn",
+            TestedVersion: new(7, 5, 7, 1)),
         new("WrathCombo", "Wrath Combo", DependencyRole.Rotation, "Rotation (no Beastmaster support seen yet)", "https://github.com/PunishXIV/WrathCombo"),
-        new("BossModReborn", "BossMod Reborn", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/FFXIV-CombatReborn/BossmodReborn"),
-        new("BossMod", "BossMod (original)", DependencyRole.Mechanics, "Not used: Crucible SUX needs BossMod Reborn", "https://github.com/awgil/ffxiv_bossmod",
-            Conflict: "It blocks movement while you cast, so the character cannot dodge, and it does not put the First Board's " +
-                      "dangerous adds first. Disable it and use BossMod Reborn"),
-        new("AutoDuty", "AutoDuty (erdelf)", DependencyRole.BoardDriver, "Lauda's menus, team setup, board movement", "https://github.com/erdelf/AutoDuty", "erdelf"),
-        new("Lifestream", "Lifestream", DependencyRole.Travel, "Teleports", "https://github.com/NightmareXIV/Lifestream"),
-        new("TextAdvance", "TextAdvance", DependencyRole.Dialogs, "Advancing NPC text", "https://github.com/NightmareXIV/TextAdvance"),
+        new("BossModReborn", "BossMod Reborn", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/FFXIV-CombatReborn/BossmodReborn",
+            TestedVersion: new(7, 5, 7, 1)),
+        new("BossMod", "BossMod (original)", DependencyRole.Mechanics, "AI movement and dodging", "https://github.com/awgil/ffxiv_bossmod", TestedVersion: new(7, 5, 7, 0)),
+        new("AutoDuty", "AutoDuty (erdelf)", DependencyRole.BoardDriver, "Lauda's menus, team setup, board movement", "https://github.com/erdelf/AutoDuty", "erdelf",
+            TestedVersion: new(0, 0, 0, 389)),
+        new("Lifestream", "Lifestream", DependencyRole.Travel, "Teleports", "https://github.com/NightmareXIV/Lifestream", TestedVersion: new(2, 6, 0, 7)),
+        new("TextAdvance", "TextAdvance", DependencyRole.Dialogs, "Advancing NPC text", "https://github.com/NightmareXIV/TextAdvance", TestedVersion: new(3, 3, 0, 1)),
     ];
 
     private static readonly DependencyRole[] RequiredRoles = [DependencyRole.Navigation, DependencyRole.Rotation, DependencyRole.Mechanics, DependencyRole.BoardDriver];
 
-    public static IReadOnlyList<RoleStatus> Evaluate(IEnumerable<InstalledPlugin> installed)
+    private const string UnusedBossMod = "Both BossMods answer AutoDuty under the same names, so only the one you use (Settings) may be loaded during a run";
+
+    /// <summary>
+    /// <see cref="All"/> for <paramref name="choice"/>: the BossMod the player does not use (<see cref="BossModSwitch.OffFor"/>)
+    /// is a <see cref="DependencyInfo.Conflict"/> for mechanics.
+    /// </summary>
+    private static IReadOnlyList<DependencyInfo> For(BossModChoice choice)
     {
+        string unused = BossModSwitch.OffFor(choice);
+        return [.. All.Select(d => d.Role == DependencyRole.Mechanics && d.InternalName == unused ? d with { Conflict = UnusedBossMod } : d)];
+    }
+
+    public static IReadOnlyList<RoleStatus> Evaluate(IEnumerable<InstalledPlugin> installed, BossModChoice choice = BossModChoice.Unset)
+    {
+        var catalog = For(choice);
         var byName = installed.GroupBy(p => p.InternalName, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.OrderByDescending(p => p.IsLoaded).First(), StringComparer.OrdinalIgnoreCase);
 
@@ -60,7 +87,7 @@ public static class DependencyCatalog
         foreach (var role in Enum.GetValues<DependencyRole>())
         {
             bool required = RequiredRoles.Contains(role);
-            var candidates = All.Where(d => d.Role == role)
+            var candidates = catalog.Where(d => d.Role == role)
                 .Select(d => Status(d, byName.GetValueOrDefault(d.InternalName)))
                 .ToList();
             var loaded = candidates.Where(c => c.Info.Conflict is null && c.Status is CheckStatus.Pass or CheckStatus.Warn).ToList();
@@ -104,8 +131,8 @@ public static class DependencyCatalog
         [.. roles.SelectMany(r => r.Candidates).Where(c => c.Info.Conflict is not null && c.Status == CheckStatus.Fail).Select(c => c.Info).Distinct()];
 
     /// <summary><paramref name="installed"/> as it will be once every conflicting plugin is turned off.</summary>
-    public static IEnumerable<InstalledPlugin> WithConflictsOff(IEnumerable<InstalledPlugin> installed) =>
-        installed.Select(p => p.IsLoaded && All.Any(d => d.Conflict is not null && d.InternalName.Equals(p.InternalName, StringComparison.OrdinalIgnoreCase))
+    public static IEnumerable<InstalledPlugin> WithConflictsOff(IEnumerable<InstalledPlugin> installed, BossModChoice choice = BossModChoice.Unset) =>
+        installed.Select(p => p.IsLoaded && For(choice).Any(d => d.Conflict is not null && d.InternalName.Equals(p.InternalName, StringComparison.OrdinalIgnoreCase))
             ? p with { IsLoaded = false }
             : p);
 
@@ -128,6 +155,8 @@ public static class DependencyCatalog
             return new(info, p, CheckStatus.Unknown, $"Installed ({p.Version}) but disabled");
         if (info.RepoHint is not null && p.RepoUrl?.Contains(info.RepoHint, StringComparison.OrdinalIgnoreCase) != true)
             return new(info, p, CheckStatus.Warn, $"{info.DisplayName}: this build ({p.RepoUrl ?? "unknown repo"}) may lack Crucible support; the {info.RepoHint} build has it");
+        if (info.TestedVersion is { } tested && p.Version < tested)
+            return new(info, p, CheckStatus.Warn, $"{info.DisplayName} {p.Version} is older than the tested {tested}: update it in /xlplugins");
         return new(info, p, CheckStatus.Pass, $"Loaded ({p.Version})");
     }
 }

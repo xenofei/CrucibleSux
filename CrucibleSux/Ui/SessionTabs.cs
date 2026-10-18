@@ -10,7 +10,7 @@ using Dalamud.Plugin.Services;
 namespace CrucibleSux.Ui;
 
 /// <summary>The Run tab (queue, guard rails, start and stop, live status) and the History tab.</summary>
-/// <param name="start">Starts the session, turning the original BossMod off first when needed.</param>
+/// <param name="start">Starts the session, turning the BossMod the player does not use off first when needed.</param>
 public sealed class SessionTabs(SessionRunner runner, ProgressionRunner journey, Session session, Configuration config, IPlayerState player, Action save, Action start)
 {
     private int addBoard = 1;
@@ -44,9 +44,12 @@ public sealed class SessionTabs(SessionRunner runner, ProgressionRunner journey,
         var checks = runner.Checks(beforeSwitch: true);
         foreach (var check in checks)
             MainWindow.DrawCheck(check);
+        bool unchosen = config.MechanicsPlugin == BossModChoice.Unset;
+        if (unchosen)
+            ImGui.TextColored(ImGuiColors.DalamudYellow, "Start asks which BossMod you use; until then these checks assume BossMod Reborn.");
 
         ImGui.Spacing();
-        using (ImRaii.Disabled(!Preflight.CanStart(checks)))
+        using (ImRaii.Disabled(!unchosen && !Preflight.CanStart(checks)))
         {
             if (ImGui.Button("Start session"))
                 start();

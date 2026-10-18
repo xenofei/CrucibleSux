@@ -62,10 +62,12 @@ public sealed class Plugin : IDalamudPlugin
     {
         this.config = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         var data = new CrucibleData(DataManager);
-        this.session = new Session(new CharacterReader(PlayerState, UnlockState, DataManager, this.config), new PluginInventory(PluginInterface, Log), Log);
+        this.session = new Session(new CharacterReader(PlayerState, UnlockState, DataManager, this.config), new PluginInventory(PluginInterface, Log), this.config, Log);
         this.bestiary = new BestiaryWatcher(AddonLifecycle, PlayerState, Log, this.config, this.Save, data.Beasts);
         this.autoDuty = new AutoDutyIpc(PluginInterface, Log);
-        this.runner = new SessionRunner(this.session, this.autoDuty, this.config, this.Save,
+        // The recorder is created below, before any run can start.
+        var bossModIpc = new BossModIpc(PluginInterface, Log, text => this.recorder!.Note(LogKind.Warn, text));
+        this.runner = new SessionRunner(this.session, this.autoDuty, bossModIpc, this.config, this.Save,
             ClientState, Condition, ObjectTable, GameGui, PlayerState, ChatGui, NotificationManager);
         var game = new GameActions(ObjectTable, Condition, GameGui, PlayerState);
         var nav = new NavmeshIpc(PluginInterface, Log);
@@ -147,8 +149,10 @@ public sealed class Plugin : IDalamudPlugin
             $"Crucible SUX {PluginInterface.Manifest.AssemblyVersion}, client language {ClientState.ClientLanguage}, mode: {mode}",
             $"Settings: {this.config.BoardRunOptions()}, kill dangerous adds first: {(this.config.PickTargets ? "on" : "off")}",
         };
+        string inUse = this.config.MechanicsPlugin == BossModChoice.Unset ? "not chosen (counts as Reborn)" : this.config.MechanicsPlugin.ToString();
         if (this.bossMod.TurnedOff)
-            lines.Add($"The original BossMod is turned off for this run{(this.bossMod.RebornReloaded ? "; BossMod Reborn was reloaded" : string.Empty)}");
+            inUse += $", {BossModSwitch.Name(this.bossMod.Off)} turned off for this run{(this.bossMod.Reloaded ? $", {BossModSwitch.Name(this.bossMod.Kept)} reloaded" : string.Empty)}";
+        lines.Add($"BossMod in use: {inUse}");
         if (this.autoDuty.LastOverrides is { } pushed)
             lines.Add($"Last AutoDuty settings pushed: {string.Join(", ", pushed.Select(p => $"{p.Key}={p.Value}"))}");
         var plugins = this.session.Dependencies.SelectMany(r => r.Candidates)
@@ -212,15 +216,17 @@ public sealed class Plugin : IDalamudPlugin
             ChatGui.PrintError("[Crucible SUX] The journey is running and starts its own boards; \"/sux stop\" stops it.");
             return;
         }
-        // Judged as if the original BossMod were off, so it is turned off only for a session that can start.
-        this.session.Update(force: true);
-        var checks = this.runner.Checks(fresh: true, beforeSwitch: true);
-        if (!Preflight.CanStart(checks))
-        {
-            PrintSessionProblems(checks);
-            return;
-        }
+        // Judged once the player has said which BossMod they use, as if the other one were off, so it is turned off only
+        // for a session that can start.
         this.bossMod.Run("the session", () =>
+        {
+            this.session.Update(force: true);
+            var checks = this.runner.Checks(fresh: true, beforeSwitch: true);
+            bool ready = Preflight.CanStart(checks);
+            if (!ready)
+                PrintSessionProblems(checks);
+            return ready;
+        }, () =>
         {
             var started = this.runner.Start();
             if (this.runner.Current is null)
@@ -242,12 +248,13 @@ public sealed class Plugin : IDalamudPlugin
             ChatGui.Print("[Crucible SUX] The journey is already running.");
             return;
         }
-        if (this.journey.Checks(beforeSwitch: true) is { Count: > 0 } problems)
-        {
-            PrintJourneyProblems(problems);
-            return;
-        }
         this.bossMod.Run("the journey", () =>
+        {
+            var problems = this.journey.Checks(beforeSwitch: true);
+            if (problems.Count > 0)
+                PrintJourneyProblems(problems);
+            return problems.Count == 0;
+        }, () =>
         {
             if (!this.journey.Start())
                 PrintJourneyProblems(this.journey.Checks());

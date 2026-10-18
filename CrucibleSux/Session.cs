@@ -10,7 +10,7 @@ namespace CrucibleSux;
 /// What the windows draw: the latest character snapshot and companion-plugin check, refreshed on the framework thread.
 /// The derived views (progress, sitting plan) are computed once per snapshot.
 /// </summary>
-public sealed class Session(CharacterReader reader, PluginInventory plugins, IPluginLog log)
+public sealed class Session(CharacterReader reader, PluginInventory plugins, Configuration config, IPluginLog log)
 {
     private static readonly TimeSpan SnapshotEvery = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan PluginsEvery = TimeSpan.FromSeconds(5);
@@ -24,7 +24,7 @@ public sealed class Session(CharacterReader reader, PluginInventory plugins, IPl
     public SittingPlan? Plan { get; private set; }
     public IReadOnlyList<RoleStatus> Dependencies { get; private set; } = [];
 
-    /// <summary>Loaded plugins that must be off for a run (the original BossMod).</summary>
+    /// <summary>Loaded plugins that must be off for a run (the BossMod the player does not use).</summary>
     public IReadOnlyList<DependencyInfo> Conflicts { get; private set; } = [];
 
     /// <summary><see cref="Dependencies"/> as they will be once <see cref="Conflicts"/> are turned off.</summary>
@@ -40,11 +40,11 @@ public sealed class Session(CharacterReader reader, PluginInventory plugins, IPl
         {
             this.nextPlugins = now + PluginsEvery;
             var installed = plugins.Read();
-            this.Dependencies = DependencyCatalog.Evaluate(installed);
+            this.Dependencies = DependencyCatalog.Evaluate(installed, config.MechanicsPlugin);
             this.Conflicts = DependencyCatalog.LoadedConflicts(this.Dependencies);
             this.DependenciesWithConflictsOff = this.Conflicts.Count == 0
                 ? this.Dependencies
-                : DependencyCatalog.Evaluate(DependencyCatalog.WithConflictsOff(installed));
+                : DependencyCatalog.Evaluate(DependencyCatalog.WithConflictsOff(installed, config.MechanicsPlugin), config.MechanicsPlugin);
         }
 
         if (!force && now < this.nextSnapshot)

@@ -29,6 +29,7 @@ public sealed class SessionRunner : IDisposable
 
     private readonly Session session;
     private readonly AutoDutyIpc autoDuty;
+    private readonly BossModIpc bossMod;
     private readonly Configuration config;
     private readonly Action save;
     private readonly IClientState clientState;
@@ -50,6 +51,7 @@ public sealed class SessionRunner : IDisposable
     public SessionRunner(
         Session session,
         AutoDutyIpc autoDuty,
+        BossModIpc bossMod,
         Configuration config,
         Action save,
         IClientState clientState,
@@ -62,6 +64,7 @@ public sealed class SessionRunner : IDisposable
     {
         this.session = session;
         this.autoDuty = autoDuty;
+        this.bossMod = bossMod;
         this.config = config;
         this.save = save;
         this.clientState = clientState;
@@ -90,8 +93,8 @@ public sealed class SessionRunner : IDisposable
 
     /// <summary>
     /// The guard rails for <paramref name="queue"/> (the saved queue when null). AutoDuty is asked at most every 2 s unless
-    /// <paramref name="fresh"/>. <paramref name="beforeSwitch"/> judges the plugins as they will be once the original
-    /// BossMod is turned off (<see cref="BossModGate"/>); <see cref="Start"/> always judges them as they are.
+    /// <paramref name="fresh"/>. <paramref name="beforeSwitch"/> judges the plugins as they will be once the BossMod the
+    /// player does not use is turned off (<see cref="BossModGate"/>); <see cref="Start"/> always judges them as they are.
     /// </summary>
     public IReadOnlyList<ReadinessCheck> Checks(bool fresh = false, IReadOnlyList<QueueEntry>? queue = null, bool beforeSwitch = false)
     {
@@ -215,6 +218,8 @@ public sealed class SessionRunner : IDisposable
                 case CommandKind.StartBoard:
                     if (this.autoDuty.Start(c.Board!, this.rotationPlugin, this.config.BoardRunOptions()) is { } error)
                         o.StartFailed(now, error);
+                    else
+                        this.bossMod.AllowMovingWhileCasting();
                     break;
                 case CommandKind.StopExecutor:
                     this.autoDuty.Stop();

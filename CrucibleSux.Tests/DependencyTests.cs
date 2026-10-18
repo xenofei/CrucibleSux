@@ -4,7 +4,7 @@ namespace CrucibleSux.Tests;
 
 public class DependencyTests
 {
-    private static InstalledPlugin P(string name, bool loaded = true, string? repo = null) => new(name, new Version(1, 0), loaded, repo);
+    private static InstalledPlugin P(string name, bool loaded = true, string? repo = null, string version = "99.0") => new(name, new Version(version), loaded, repo);
 
     private static readonly InstalledPlugin[] FullSet =
     [
@@ -24,13 +24,39 @@ public class DependencyTests
     }
 
     [Fact]
-    public void The_original_BossMod_does_not_cover_mechanics()
+    public void Unchosen_counts_as_BossMod_Reborn_so_the_original_alone_does_not_cover_mechanics()
     {
         var s = DependencyCatalog.Evaluate(FullSet.Select(p => p.InternalName == "BossModReborn" ? p with { InternalName = "BossMod" } : p));
 
         var mechanics = Role(s, DependencyRole.Mechanics);
         Assert.Equal(CheckStatus.Fail, mechanics.Status);
-        Assert.Contains("Disable it and use BossMod Reborn", mechanics.Detail);
+        Assert.Contains("only the one you use", mechanics.Detail);
+    }
+
+    [Fact]
+    public void Choosing_the_original_BossMod_makes_Reborn_the_one_turned_off()
+    {
+        var installed = FullSet.Append(P("BossMod")).ToList();
+
+        var before = DependencyCatalog.Evaluate(installed, BossModChoice.Original);
+        Assert.Equal(CheckStatus.Fail, Role(before, DependencyRole.Mechanics).Status);
+        Assert.Equal("BossModReborn", Assert.Single(DependencyCatalog.LoadedConflicts(before)).InternalName);
+
+        var after = DependencyCatalog.Evaluate(DependencyCatalog.WithConflictsOff(installed, BossModChoice.Original), BossModChoice.Original);
+        Assert.All(after, r => Assert.Equal(CheckStatus.Pass, r.Status));
+        Assert.Equal("BossMod (original)", Role(after, DependencyRole.Mechanics).Detail);
+        Assert.Equal("Uses Rotation Solver Reborn", Role(after, DependencyRole.Rotation).Detail);
+    }
+
+    [Fact]
+    public void A_plugin_older_than_the_tested_release_warns_and_the_tested_one_passes()
+    {
+        var older = DependencyCatalog.Evaluate(FullSet.Select(p => p.InternalName == "AutoDuty" ? p with { Version = new Version(0, 0, 0, 388) } : p));
+        var tested = DependencyCatalog.Evaluate(FullSet.Select(p => p.InternalName == "AutoDuty" ? p with { Version = new Version(0, 0, 0, 389) } : p));
+
+        Assert.Equal(CheckStatus.Warn, Role(older, DependencyRole.BoardDriver).Status);
+        Assert.Contains("older than the tested 0.0.0.389", Role(older, DependencyRole.BoardDriver).Detail);
+        Assert.Equal(CheckStatus.Pass, Role(tested, DependencyRole.BoardDriver).Status);
     }
 
     [Fact]
@@ -76,7 +102,7 @@ public class DependencyTests
 
         var mechanics = Role(s, DependencyRole.Mechanics);
         Assert.Equal(CheckStatus.Fail, mechanics.Status);
-        Assert.Contains("blocks movement while you cast", mechanics.Detail);
+        Assert.Contains("only the one you use", mechanics.Detail);
     }
 
     [Fact]
