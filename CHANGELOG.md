@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **A capture that never starts the fight (the cause):** the journey read the game's auto-attack flag, which FFXIVClientStructs notes no longer holds the state in this patch. It read "already attacking", so the journey never sent the attack.
+  - The 0.3.7 log showed the character in reach of the squirrel for 26 s with nothing sent.
+  - The journey now treats combat starting as the sign the fight is on. Until then it sends the attack action twice, then the hotbar's Auto-attack twice, then Capture, about 1.5 s apart, logging each try and what the game returned.
+
 ## [0.3.7] - 2026-10-18
 
 ### Fixed

@@ -105,26 +105,20 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
         return am != null && am->UseAction(ActionType.Action, action, target);
     }
 
-    /// <summary>Action 7, "attack": toggles auto-attack, so it is only sent while auto-attack is off.</summary>
+    /// <summary>
+    /// Action 7, "attack": toggles auto-attack. The game's own auto-attack flag (WeaponState.AutoAttackState) no longer
+    /// holds the state in this patch (FFXIVClientStructs says so), so callers send it only until combat starts.
+    /// </summary>
     public const uint AutoAttack = 7;
 
     /// <summary>General action 1, the hotbar's "Auto-attack": the same toggle, on the current target.</summary>
     public const uint AutoAttackGeneral = 1;
 
-    public bool IsAutoAttacking
-    {
-        get
-        {
-            var ui = UIState.Instance();
-            return ui != null && ui->WeaponState.AutoAttackState.IsAutoAttacking;
-        }
-    }
-
-    /// <summary>Starts auto-attacking <paramref name="target"/> without using a weapon skill.</summary>
+    /// <summary>Starts auto-attacking <paramref name="target"/> without using a weapon skill; send it only while not in combat.</summary>
     public bool StartAutoAttack(IGameObject target)
     {
         this.Target(target);
-        return this.IsAutoAttacking || this.UseAction(AutoAttack, target.GameObjectId);
+        return this.UseAction(AutoAttack, target.GameObjectId);
     }
 
     public bool UseGeneral(uint id)

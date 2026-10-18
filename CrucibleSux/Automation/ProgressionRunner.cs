@@ -126,6 +126,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private bool wasDead;
     private (uint Status, uint Action) lastRefusal;
     private (CaptureMove Move, bool InReach) captureStep;
+    private int attackTries;
 
     public ProgressionRunner(
         ProgressionReader reader,
@@ -1095,6 +1096,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
             return;
         if (this.Attacker() is { } other && other.GameObjectId != target.GameObjectId && this.FightBack(now))
             return;
+        if (target.GameObjectId != this.prey)
+            this.attackTries = 0;
         this.prey = target.GameObjectId;
         this.since = null;
         int hp = target.MaxHp == 0 ? 100 : (int)(100L * target.CurrentHp / target.MaxHp);
@@ -1114,15 +1117,26 @@ public sealed unsafe class ProgressionRunner : IDisposable
         {
             case CaptureMove.Weaken:
                 this.rotation.Release();
-                if (this.game.IsAutoAttacking || !this.Ready(now, 1))
+                // Once the beast fights back, auto-attack is running: the game's own flag for it cannot be read.
+                if (this.game.InCombat)
+                {
+                    this.attackTries = 0;
                     break;
-                // The game has two auto-attack toggles; if it takes neither, Capture (an attack too) starts the fight.
-                if (this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
-                    this.game.StartAutoAttack(target);
-                else if (this.game.UseGeneral(GameActions.AutoAttackGeneral))
-                    Plugin.Log.Information("Journey: auto-attack started from the hotbar action instead");
-                else if (!this.game.InCombat && this.Accepts(GameActions.Capture, target, "Capture"))
-                    this.game.UseAction(GameActions.Capture, target.GameObjectId);
+                }
+                if (!this.Ready(now, 1.5))
+                    break;
+                // Until the fight starts: the attack action twice, the hotbar's Auto-attack twice, then Capture, an attack too.
+                this.attackTries++;
+                string sent;
+                if (this.attackTries <= 2 && this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
+                    sent = $"the attack action: {this.game.StartAutoAttack(target)}";
+                else if (this.attackTries <= 4)
+                    sent = $"the hotbar Auto-attack: {this.game.UseGeneral(GameActions.AutoAttackGeneral)}";
+                else if (this.Accepts(GameActions.Capture, target, "Capture"))
+                    sent = $"Capture to open the fight: {this.game.UseAction(GameActions.Capture, target.GameObjectId)}";
+                else
+                    break;
+                Plugin.Log.Information($"Journey: capture try {this.attackTries} on the {target.Name.TextValue}, sent {sent}");
                 break;
             case CaptureMove.Capture:
                 this.rotation.Release();
