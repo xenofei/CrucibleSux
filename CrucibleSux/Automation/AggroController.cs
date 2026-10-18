@@ -183,7 +183,7 @@ public sealed unsafe class AggroController
         if (this.config.ShareAggro)
         {
             var d = this.advisor.Decide(new AggroView(now, playerHp, beastHp, holder, ready, final, recovery, outlook, cast,
-                this.config.PlayerFloor, this.config.BeastFloor));
+                this.config.PlayerFloor, this.config.BeastFloor, this.config.UseItems ? potions.Sum(p => p.Percent) : 0));
             if (d.Action != AggroAction.None)
             {
                 uint action = d.Action == AggroAction.Snarl ? GameActions.Snarl : GameActions.Challenge;

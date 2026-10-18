@@ -18,7 +18,7 @@ Its session queue runs boards through AutoDuty (erdelf's build), watches every r
       The game version (ffxivgame.ver) the sheet column maps (docs/data/xbm-columns.md) and the Bestiary reader were
       checked against. The release workflow refuses a tag while it is empty.
     -->
-    <CrucibleSuxTestedGameVersion>2026.09.15.0000.0000</CrucibleSuxTestedGameVersion>
+    <CrucibleSuxTestedGameVersion>2026.10.06.0000.0000</CrucibleSuxTestedGameVersion>
   </PropertyGroup>
 
   <ItemGroup>

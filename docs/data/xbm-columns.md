@@ -1,6 +1,7 @@
 # Crucible sheet columns
 
-What each column of the Crucible's sheets means, as read from game 2026.09.15.0000.0000 with
+What each column of the Crucible's sheets means, as read from game 2026.09.15.0000.0000 (and unchanged in
+2026.10.06.0000.0000, except one bonus value) with
 `tools/CrucibleSux.DataDump`. Lumina's stable `XBM*` types name these columns `UnknownN`. The named types in
 `Lumina.Excel.Sheets.Experimental` raise the `PendingExcelSchema` error, so the code reads the stable ones and this
 file is the map. On patch day, rerun the dump and compare:

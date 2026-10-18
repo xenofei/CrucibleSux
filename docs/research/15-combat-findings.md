@@ -46,7 +46,7 @@ board does not apply there.
 | Feed the Bold | Fed 20+ times | – | – | 1,500 | – | 1,500 |
 | Coin Clutcher | No tokens spent | 500 | 500 | 500 | 500 | 500 |
 | Rolling in Riches | Hold 2,000+ tokens | – | 500 | 500 | 500 | 500 |
-| Sleepless Survival | No campsite rest | 375 | 375 | 375 | 375 | 375 |
+| Sleepless Survival | No campsite rest | 1,000 (375 before game 2026.10.06) | 1,000 | 1,000 | 1,000 | 1,000 |
 | (Kin) Gambit ×8 | Team of one kin only | 750 | 750 | 750 | 750 | 750 |
 | First / Second / Third Degree | Clear under that degree | 4,000 / 6,250 / 9,000 | same | same | same | same |
 
@@ -55,8 +55,9 @@ What follows for the plugin:
 - **Team of 3, all one kin, never knocked out** is worth 4,250 + 750 + 1,000, the largest controllable block.
 - **Score-safe choices:** no shop, no items, no feeding, no gear and no rest add up to 3,125 on the First Board.
   Healing pulls the other way: Selfless (1,000) and Self-preservation (250) need full HP at the clear. A potion costs
-  Economic Ethos (750) and a rest costs Sleepless Survival (375). So the cheapest top-up is a campsite rest just before
-  the boss, if the board has one, and only when beasts are hurt.
+  Economic Ethos (750) and a rest costs Sleepless Survival (1,000 since game 2026.10.06, 375 before). A potion is
+  therefore the cheaper top-up now. AutoDuty's rests never heal beasts anyway (research 17).
+  - The pre-7.57 advice was a campsite rest just before the boss, and only when beasts are hurt.
 - **Unbeastable (1,250)** is lost to Damage Down or Vulnerability Up. In FFXIV these usually come from standing in an
   AoE, so dodging is worth points as well as HP.
 - **Open question:** the sources cap space points at 5,000. With that cap, the bonuses a Standard-degree First Board can

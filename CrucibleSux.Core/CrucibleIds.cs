@@ -1,7 +1,8 @@
 namespace CrucibleSux.Core;
 
 /// <summary>
-/// Game IDs the plugin pins, read from game 2026.09.15.0000.0000 with tools/CrucibleSux.DataDump. Refresh them on patch
+/// Game IDs the plugin pins, read from game 2026.09.15.0000.0000 with tools/CrucibleSux.DataDump and unchanged in
+/// 2026.10.06.0000.0000 (7.57). Refresh them on patch
 /// day (docs/data/xbm-columns.md); the GameData tests compare them with the sheets when a game install is available.
 /// </summary>
 public static class CrucibleIds

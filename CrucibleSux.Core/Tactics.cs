@@ -115,11 +115,12 @@ public sealed record ScoreOutlook(bool NoBeastLeftBehind, bool Selfless, bool Se
     /// <summary>Willing Sacrifice III / II / I for 1 / 2 / 3 beasts KO'd; 0 otherwise.</summary>
     public int WillingSacrifice => this.BeastsKnockedOut switch { 1 => 750, 2 => 500, 3 => 250, _ => 0 };
 
-    /// <param name="recoveryAhead">A campsite rest before the clear will bring everyone back to 100%.</param>
-    public static ScoreOutlook Of(int beastsKnockedOut, bool beastHurt, bool playerHurt, bool itemUsed, bool recoveryAhead) => new(
+    /// <param name="playerRecoveryAhead">A campsite rest before the clear will bring the character back to 100%. Only the
+    /// character: AutoDuty rests no familiar (docs/research/17-upstream-2026-10-18.md), so only a potion heals one.</param>
+    public static ScoreOutlook Of(int beastsKnockedOut, bool beastHurt, bool playerHurt, bool itemUsed, bool playerRecoveryAhead) => new(
         NoBeastLeftBehind: beastsKnockedOut == 0,
-        Selfless: beastsKnockedOut == 0 && (!beastHurt || recoveryAhead),
-        SelfPreservation: !playerHurt || recoveryAhead,
+        Selfless: beastsKnockedOut == 0 && !beastHurt,
+        SelfPreservation: !playerHurt || playerRecoveryAhead,
         EconomicEthos: !itemUsed,
         BeastsKnockedOut: beastsKnockedOut);
 }
@@ -131,7 +132,8 @@ public sealed record PendingCast(string Name, double SecondsLeft);
 /// <param name="BeastHp">The familiar's HP%, or null when none is out.</param>
 /// <param name="Holder">Whom the enemies are attacking, or null when nobody.</param>
 /// <param name="CooldownReady">Snarl and Challenge (one shared cooldown) can be used now.</param>
-/// <param name="RecoveryAhead">A campsite rest lies between this battle and the clear.</param>
+/// <param name="RecoveryAhead">A campsite rest heals the character between this battle and the clear (never a familiar).</param>
+/// <param name="PotionPercent">The HP% the Beast Potions held restore in all.</param>
 public sealed record AggroView(
     DateTime Now,
     double PlayerHp,
@@ -143,7 +145,8 @@ public sealed record AggroView(
     ScoreOutlook Outlook,
     PendingCast? Cast = null,
     double PlayerFloor = AggroAdvisor.DefaultPlayerFloor,
-    double BeastFloor = AggroAdvisor.DefaultBeastFloor);
+    double BeastFloor = AggroAdvisor.DefaultBeastFloor,
+    double PotionPercent = 0);
 
 public enum AggroAction
 {
@@ -228,9 +231,11 @@ public sealed class AggroAdvisor
         }
         else
         {
-            // Letting a safe actor take the window costs only the bonus its lost HP forfeits; a safe tank is not KO'd.
-            int costB = v.Outlook.Selfless && !v.RecoveryAhead ? ScoreOutlook.SelflessPoints : 0;
-            int costP = v.Outlook.SelfPreservation && !v.RecoveryAhead ? ScoreOutlook.SelfPreservationPoints : 0;
+            // Letting a safe actor take the window costs the bonus its lost HP forfeits, or the potions that undo it when
+            // cheaper: Economic Ethos for the first item of the board, nothing after. A safe tank is not KO'd.
+            int Undo(double loss) => v.PotionPercent < loss ? int.MaxValue : v.Outlook.EconomicEthos ? ScoreOutlook.EconomicEthosPoints : 0;
+            int costB = v.Outlook.Selfless ? Math.Min(ScoreOutlook.SelflessPoints, Undo(lossB)) : 0;
+            int costP = v.Outlook.SelfPreservation && !v.RecoveryAhead ? Math.Min(ScoreOutlook.SelfPreservationPoints, Undo(lossP)) : 0;
             want = costP < costB ? Actor.Player : Actor.Beast;
             why = Inv($"both safe; tanking costs you {costP}, the familiar {costB}");
             forced = false;

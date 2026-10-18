@@ -1,6 +1,6 @@
 # Aggro sharing and the score advisor
 
-Design date 2026-10-18, game 2026.09.15.0000.0000. The owner asked for two things:
+Design date 2026-10-18, game 2026.10.06.0000.0000. The owner asked for two things:
 
 - The beast and the character should share aggro. Each takes hits for a while, handing off by HP.
 - The choices should keep the highest score the run can still reach. The owner's rule: "as long as they're healed by
@@ -48,7 +48,7 @@ Design date 2026-10-18, game 2026.09.15.0000.0000. The owner asked for two thing
 | Selfless | every beast at 100% HP at the clear | 1,000 |
 | Self-preservation | character at 100% HP at the clear | 250 |
 | Economic Ethos | no crucible item used (any number after the first costs nothing more) | 750 |
-| Sleepless Survival | no campsite rest | 375 |
+| Sleepless Survival | no campsite rest | 1,000 (375 before game 2026.10.06) |
 
 "At the clear" means when the final battle ends, and nothing can heal after that. Damage taken in the **final**
 battle can only be undone with items used during that battle.
@@ -89,15 +89,15 @@ Projected loss over the next window:
    beast costs about 250: No Beast Left Behind (1,000) traded for Willing Sacrifice III (750).
 3. **Both safe:** the cheaper one in score tanks. The cost of letting actor X take this window's damage:
    - **Beast:**
-     - 0 if Selfless is already lost (a beast is KO'd, or below 100% with no recovery left before the clear)
-     - 0 if recovery before the clear will bring it back to 100%: a campsite before the final battle with room for
-       it, or healing items already counted for this run
-     - otherwise 1,000 (Selfless)
+     - 0 if Selfless is already lost (a beast is KO'd or below 100%)
+     - otherwise the cheaper of Selfless (1,000) and the potions that would undo this window's damage. The potions
+       cost 750 (Economic Ethos) while no item has been used on this board, and 0 after.
+     - A campsite never counts: AutoDuty rests no familiar (research 17), and a rest costs Sleepless Survival (1,000).
      - plus the KO risk: (1,000 − the Willing Sacrifice tier it falls into) × the chance the next window KOs it. That
        chance is 0 when safe, so this term matters only for unsafe tanks.
    - **Character:**
-     - 0 if recovery before the clear will bring it back to 100%
-     - otherwise 250 (Self-preservation)
+     - 0 if a campsite rest before the clear will bring it back to 100%
+     - otherwise the cheaper of 250 (Self-preservation) and the potions that would undo it
      - the run-loss risk outweighs everything else, which is why the floor is higher
 4. **Ties** go to the beast. It is what Snarl is for, and the character's HP is the run.
 5. **Hysteresis.** The advisor does not hand off again for one window unless step 1 forces it. Snarl's Cover lasts the
@@ -106,12 +106,16 @@ Projected loss over the next window:
 Recovery before the clear needs to know:
 
 - which battle this is (the final one is the boss space)
-- whether a campsite lies ahead of it on AutoDuty's path, and how many familiars it takes
-- the crucible items held
+- whether a campsite lies ahead of it on AutoDuty's path
+- the crucible items held: the director's inventory, which the controller reads every tick. Any item that leaves the
+  bag marks Economic Ethos as spent.
 
-**Phase 1 (this change)** knows the battle and whether it is the boss. It treats "campsite ahead" as true for every
-battle before the boss when AutoDuty's Rest is on (Clear goal), and false in Score mode or in the final battle. The
-board graph read (PLAN F4) makes it exact later.
+**Phase 1 (this change)** knows the battle and whether it is the boss.
+
+- It treats "campsite ahead" as true for the character in every battle before the boss when AutoDuty's Rest is on
+  (Clear goal).
+- It treats it as false in Score mode, in the final battle, and always for familiars.
+- The board graph read (PLAN F4) makes it exact later.
 
 ## 4. Healing with items (score-aware)
 

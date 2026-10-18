@@ -7,13 +7,13 @@ public class TacticsTests
     private static readonly DateTime T0 = new(2026, 10, 18, 12, 0, 0, DateTimeKind.Utc);
 
     /// <summary>Selfless and Self-preservation already gone: tanking costs nothing in score.</summary>
-    private static readonly ScoreOutlook Lost = ScoreOutlook.Of(0, beastHurt: true, playerHurt: true, itemUsed: false, recoveryAhead: false);
+    private static readonly ScoreOutlook Lost = ScoreOutlook.Of(0, beastHurt: true, playerHurt: true, itemUsed: false, playerRecoveryAhead: false);
 
-    private static readonly ScoreOutlook Intact = ScoreOutlook.Of(0, beastHurt: false, playerHurt: false, itemUsed: false, recoveryAhead: false);
+    private static readonly ScoreOutlook Intact = ScoreOutlook.Of(0, beastHurt: false, playerHurt: false, itemUsed: false, playerRecoveryAhead: false);
 
     private static AggroView View(double player, double beast, Actor holder, ScoreOutlook outlook, DateTime? now = null,
-        bool final = false, bool recovery = false, PendingCast? cast = null) =>
-        new(now ?? T0, player, beast, holder, CooldownReady: true, final, recovery, outlook, cast);
+        bool final = false, bool recovery = false, PendingCast? cast = null, double potions = 0) =>
+        new(now ?? T0, player, beast, holder, CooldownReady: true, final, recovery, outlook, cast, PotionPercent: potions);
 
     /// <summary>The familiar tanks for 10 s, losing 0.2% a second in small hits.</summary>
     private static void BeastTankedLightly(AggroAdvisor a, double fromHp)
@@ -74,11 +74,14 @@ public class TacticsTests
     }
 
     [Fact]
-    public void In_the_final_battle_with_Selfless_intact_the_character_tanks_while_safe()
+    public void With_Selfless_intact_the_character_tanks_while_safe()
     {
         Assert.Equal(AggroAction.Challenge, new AggroAdvisor().Decide(View(100, 100, Actor.Beast, Intact, final: true)).Action);
-        // With a campsite ahead nothing is lost either way, and the tie goes to the beast.
-        Assert.Equal(AggroAction.Snarl, new AggroAdvisor().Decide(View(100, 100, Actor.Player, Intact, recovery: true)).Action);
+        // A campsite ahead heals only the character, so before the boss it tanks too.
+        Assert.Equal(AggroAction.Challenge, new AggroAdvisor().Decide(View(100, 100, Actor.Beast, Intact, recovery: true)).Action);
+        // Once an item has been used, potions undo the familiar's damage for free: nothing is lost either way, the tie goes to the beast.
+        var ethosGone = ScoreOutlook.Of(0, beastHurt: false, playerHurt: false, itemUsed: true, playerRecoveryAhead: true);
+        Assert.Equal(AggroAction.Snarl, new AggroAdvisor().Decide(View(100, 100, Actor.Player, ethosGone, recovery: true, potions: 50)).Action);
     }
 
     [Fact]
