@@ -48,6 +48,9 @@ public static class FatePicker
     /// <summary>Seconds a FATE is assumed to take from 0% when the player joins.</summary>
     private const float FullFateSeconds = 150f;
 
+    /// <summary>Seconds of fighting a FATE needs after arrival before it ends, for the character to earn its credit.</summary>
+    private const float MinShare = 15f;
+
     /// <summary>How far below the player's level a FATE may be before it is not worth the trip.</summary>
     public const int MaxLevelsBelow = 6;
 
@@ -80,8 +83,8 @@ public static class FatePicker
         float travel = f.Distance / TravelSpeed;
         float remaining = FullFateSeconds * (100 - f.Progress) / 100f;
 
-        // Credit needs a share of the work: a FATE that ends before the player has done much gives little.
-        if (f.SecondsLeft < travel + 30 || remaining < travel * 0.5f)
+        // Credit needs a share of the work: a FATE predicted to end before the player has fought in it gives nothing.
+        if (f.SecondsLeft < travel + 30 || remaining < travel + MinShare)
             return 0;
         double exp = ExpFor(f.Level) * (f.Bonus ? 1.5 : 1);
         return exp / (travel + Math.Max(remaining, 30) + 10);
@@ -91,7 +94,11 @@ public static class FatePicker
         fates.Select(f => (f, s: Score(f, playerLevel))).Where(x => x.s > 0).OrderByDescending(x => x.s).Select(x => x.f).FirstOrDefault();
 }
 
-/// <summary>ARR zones whose FATEs suit a level band (wiki zone FATE tables; Lumina cannot link a FATE to its zone).</summary>
+/// <summary>
+/// ARR zones whose FATEs suit a level band, from the wiki's per-zone FATE tables (Lumina cannot link a FATE to its zone),
+/// rechecked 2026-10-18 (docs/research/09-leveling.md): Western La Noscea has nothing from 19 to 39, Coerthas nothing from
+/// 41 to 44, and Southern Thanalan has the most FATEs at 45-49.
+/// </summary>
 public static class LevelingZones
 {
     public const uint EastShroud = 152;
@@ -106,10 +113,12 @@ public static class LevelingZones
         < 10 => [BeastSources.CentralShroud, BeastSources.MiddleLaNoscea, BeastSources.WesternThanalan, BeastSources.LowerLaNoscea, BeastSources.CentralThanalan],
         < 16 => [BeastSources.CentralShroud, BeastSources.MiddleLaNoscea, EastShroud, BeastSources.WesternLaNoscea, EasternThanalan],
         < 22 => [EastShroud, EasternThanalan, BeastSources.WesternLaNoscea, BeastSources.UpperLaNoscea],
-        < 30 => [BeastSources.SouthShroud, BeastSources.UpperLaNoscea, BeastSources.SouthernThanalan, BeastSources.WesternLaNoscea],
+        < 30 => [BeastSources.SouthShroud, BeastSources.SouthernThanalan, EasternThanalan, BeastSources.UpperLaNoscea],
         < 36 => [BeastSources.EasternLaNoscea, OuterLaNoscea, BeastSources.SouthernThanalan, BeastSources.SouthShroud],
-        < 45 => [CoerthasCentralHighlands, OuterLaNoscea, BeastSources.EasternLaNoscea],
-        _ => [CoerthasCentralHighlands, BeastSources.MorDhona, NorthernThanalan, OuterLaNoscea],
+        < 41 => [CoerthasCentralHighlands, OuterLaNoscea, BeastSources.EasternLaNoscea],
+        < 45 => [EastShroud, BeastSources.WesternLaNoscea, EasternThanalan, BeastSources.MorDhona, OuterLaNoscea],
+        // Outer La Noscea's 45+ FATEs are mostly bosses, which take long alone.
+        _ => [BeastSources.SouthernThanalan, NorthernThanalan, BeastSources.MorDhona, EastShroud, OuterLaNoscea],
     };
 }
 

@@ -27,6 +27,16 @@ From a two-agent audit of 0.3.x:
   - The offer window closes on a character switch or when a run starts, and unlock-only refuses a character that cannot take the quest.
   - Unlock-only skips the BossMod question: the quest has no board.
   - The Journey tab has an "Unlock Beastmaster only" button for later.
+- **Levelling (a second audit, and a recheck of the fastest route after 7.57):**
+  - In a FATE, the character now walks to the FATE's enemies. It used to stop at the edge and wait for them.
+  - A FATE whose progress has not moved for 3 minutes is left and not picked again (a boss it cannot solo). It used to stop the journey after 3 rounds of 15 minutes.
+  - The picker no longer prefers a nearly finished FATE that its own estimate says ends before the character gets there.
+  - It fights back while waiting to teleport to another zone.
+  - An unreachable zone is skipped. The journey stops only when no zone of the level band can be reached.
+  - A dry band no longer teleports from zone to zone forever: a zone change is no longer progress, but a FATE's progress is.
+  - A level gained mid-FATE finishes the FATE before moving to the new band, and every band change is now noticed.
+  - When KO'd while levelling, it accepts the return to the home point.
+  - The zones per level band follow the wiki's FATE tables: Eastern Thanalan for 22-29; a new 41-44 band without Coerthas, which has no FATEs there; Southern Thanalan first for 45-50. FATEs are still the fastest solo route; the faster ones need other players (docs/research/09-leveling.md).
 - **BossMod switch:** it waits a moment after the turned-off BossMod reports unloaded before checking whether the kept one is still reachable.
 
 ## [0.3.1] - 2026-10-18

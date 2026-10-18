@@ -39,6 +39,9 @@ public class LevelingTests
     {
         Assert.Equal(0, FatePicker.Score(F(20, handIn: true), 20));
         Assert.Equal(0, FatePicker.Score(F(20, distance: 600, left: 40), 20));
+        // 300 y away (30 s) and 85% done: its predicted 22.5 s left are over before the character arrives.
+        Assert.Equal(0, FatePicker.Score(F(20, distance: 300, progress: 85), 20));
+        Assert.True(FatePicker.Score(F(20, distance: 50, progress: 0), 20) > 0);
     }
 
     [Fact]

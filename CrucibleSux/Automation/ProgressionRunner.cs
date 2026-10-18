@@ -35,6 +35,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private static readonly TimeSpan SearchPointFor = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan IdleZoneFor = TimeSpan.FromSeconds(60);
 
+    /// <summary>A FATE whose progress has not moved for this long while the character is in it is left (a boss it cannot solo).</summary>
+    private static readonly TimeSpan FateStallsAfter = TimeSpan.FromMinutes(3);
+
     /// <summary>How long a zone left for having no FATEs is not chosen again for its measured rate.</summary>
     private static readonly TimeSpan ZoneCooldown = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan NobodyThereFor = TimeSpan.FromSeconds(30);
@@ -101,7 +104,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
 
     // Levelling zone rotation; kept across activities.
     private uint zone;
-    private uint band;
+    private List<uint> bandZones = [];
+    private readonly HashSet<uint> unreachable = [];
+    private readonly HashSet<ushort> stalled = [];
+    private (ushort Fate, int Progress, DateTime At) fateWatch;
     private uint leftIdle;
     private DateTime leftIdleAt;
 
@@ -328,7 +334,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
 
         // Only what the game shows counts as progress; waiting on the player (see Wait) also keeps the clock fresh. The check
         // comes before the windows and busy states below, so a dialogue or cutscene that never ends is caught too.
-        string fp = JourneyRules.Progress(key, state, this.reader.Experience(), this.client.TerritoryType);
+        // While levelling, a zone change is not progress (a dry band would rotate forever); the FATE's progress is.
+        bool levelling = activity.Kind == ActivityKind.Level;
+        string fateKey = levelling && this.Fate(this.fate) is { } watched ? $"{key}|{watched.FateId}:{watched.Progress}" : key;
+        string fp = JourneyRules.Progress(fateKey, state, this.reader.Experience(), levelling ? 0 : this.client.TerritoryType);
         if (fp != this.fingerprint)
         {
             this.fingerprint = fp;
@@ -432,6 +441,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         ActivityKind.Quest => new(Quest: this.reader.QuestName(a.Quest), Choice: a.Step?.Choice),
         ActivityKind.UseGourd => new(Yes: this.reader.ItemName(a.Item)),
         ActivityKind.BuyGourd => new(Choice: KornagoShop.For(Purchase(a, s).Currency).Name),
+        ActivityKind.Level when this.game.Me is ICharacter { IsDead: true } => new(Yes: "home point"),
         _ => new(),
     };
 
@@ -1071,23 +1081,37 @@ public sealed unsafe class ProgressionRunner : IDisposable
         uint here = this.client.TerritoryType;
         this.meter.Record(now, here, s.JobLevel, this.reader.Experience());
         var zones = LevelingZones.For(s.JobLevel).ToList();
-        if (zones[0] != this.band)
+        // A new level band applies between FATEs, so a level gained mid-FATE does not walk away from its completion.
+        if (!zones.SequenceEqual(this.bandZones) && this.Fate(this.fate) is not { State: FateState.Running })
         {
-            this.band = zones[0];
-            this.zone = zones[0];
+            this.bandZones = zones;
+            this.zone = zones.Contains(here) ? here : zones[0];
             this.meter.Reset();
+            this.unreachable.Clear();
+            this.stalled.Clear();
         }
+        zones = this.bandZones;
 
         if (here != this.zone)
         {
+            // Teleporting waits out a fight, so fight it.
+            if (this.FightBack())
+                return;
+            this.rotation.Release();
             this.Say($"Going to {this.ZoneName(this.zone)} for FATEs.");
             if (this.travel.Tick(this.zone, Vector3.Zero, float.MaxValue) == TravelState.Failed)
             {
                 Plugin.Log.Information($"Journey: skipping {this.ZoneName(this.zone)}: {this.travel.Problem}");
-                this.zone = JourneyRules.NextZone(zones, this.zone, this.meter.Rate);
+                this.unreachable.Add(this.zone);
                 this.travel.Reset();
-                if (this.zone == zones[0])
+                var reachable = zones.Where(z => !this.unreachable.Contains(z)).ToList();
+                if (reachable.Count == 0)
+                {
+                    this.unreachable.Clear();
                     this.Fail(now, "No levelling zone for this level can be reached; attune the aetherytes there.");
+                    return;
+                }
+                this.zone = reachable.Contains(here) ? here : reachable[0];
             }
             return;
         }
@@ -1114,6 +1138,23 @@ public sealed unsafe class ProgressionRunner : IDisposable
             if (fm != null && s.JobLevel > f.MaxLevel && fm->SyncedFateId != f.FateId && this.Ready(now, 3))
                 fm->LevelSync();
             this.rotation.Set(Mode.Auto, targetFreely: true);
+
+            if (this.fateWatch.Fate != f.FateId || f.Progress > this.fateWatch.Progress)
+                this.fateWatch = (f.FateId, f.Progress, now);
+            else if (now - this.fateWatch.At > FateStallsAfter)
+            {
+                Plugin.Log.Information($"Journey: leaving the FATE {f.Name}: no progress for {FateStallsAfter.TotalMinutes:0} minutes");
+                this.stalled.Add(f.FateId);
+                this.fate = 0;
+                return;
+            }
+
+            // The rotation fights what is in reach; the character walks to the FATE's enemies itself.
+            if (this.FateEnemy(f.FateId) is { } enemy)
+            {
+                this.game.Target(enemy);
+                this.Chase(now, enemy);
+            }
             this.Say($"FATE \"{f.Name}\": {f.Progress}%.");
             return;
         }
@@ -1133,7 +1174,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.zone = better;
             return;
         }
-        if (FatePicker.Pick(this.Candidates(), s.JobLevel) is { } pick)
+        if (FatePicker.Pick(this.Candidates().Where(c => !this.stalled.Contains(c.Id)), s.JobLevel) is { } pick)
         {
             this.fate = pick.Id;
             this.travel.Reset();
@@ -1159,6 +1200,18 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 continue;
             yield return new FateCandidate(f.FateId, f.Level, f.MaxLevel, f.Progress, f.TimeRemaining, this.game.DistanceTo(f.Position), f.HasBonus, NeedsHandIn(f));
         }
+    }
+
+    /// <summary>The current target when it is alive and hostile, else the nearest living enemy of FATE <paramref name="fateId"/>.</summary>
+    private IGameObject? FateEnemy(ushort fateId)
+    {
+        if (this.objects.LocalPlayer?.TargetObject is IBattleNpc t && GameActions.IsHostile(t) && !t.IsDead && t.CurrentHp > 0)
+            return t;
+        return this.objects.OfType<IBattleNpc>()
+            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable
+                && ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == fateId)
+            .OrderBy(o => this.game.DistanceTo(o.Position))
+            .FirstOrDefault();
     }
 
     /// <summary>A collection FATE: it asks for an item to be handed in.</summary>

@@ -125,3 +125,43 @@ Its defaults ignore non-FATE targets while you are in a FATE.
 22. FFXIVClientStructs `FFXIV/Client/Game/UI/Telepo.cs`
 23. https://github.com/FFXIV-CombatReborn/RotationSolverReborn `RotationSolver/IPC/IPCProvider.cs`, `Configuration/Configs.cs`
 24. https://github.com/FFXIV-CombatReborn/BossmodReborn
+
+## Recheck, 2026-10-18 (patch 7.57)
+
+**Is FATE levelling still the fastest?** Partly:
+
+- **Solo and unattended:** FATEs are still the method. Every current guide still treats them as the solo route
+  (Eorzean Tavern, updated 2026-10-03; Elyxir, 2026-09-17), and 7.57 changed nothing about Beastmaster EXP. The
+  Lodestone 7.57 notes say 7.57 went live 2026-10-13; 2026.10.06 is the client build.
+- **Faster methods need other players:**
+  - power-levelling with max-level helpers in Heritage Found FATEs, or on Dawntrail mobs
+  - synced dungeons with a premade party: "2-3 levels a run" (Icy Veins, quoted by Boostroom 2026-09-22). Roulettes
+    and random matching stay closed.
+- **No source publishes measured EXP per hour** for any of these.
+
+**What changed or was missed before:**
+
+- **Preferred World bonus:** the New/Preferred World EXP bonus applies to Beastmaster since the 2026-09-17 hotfix. On
+  a Preferred World, "The Road to 90" doubles all EXP bonuses, quest EXP included.
+- **Boards** give job and familiar EXP by score: "less than a full level" a run. No per-board numbers exist. The 7.57
+  score increases (elites 800, Sleepless Survival 1,000) should raise board EXP slightly.
+- **Dullahans** can be captured in North Shroud, Amdapor Keep and Tam-Tara (Hard) since 7.57. BeastSources still lists
+  the dullahan as gourd-only.
+- **Boss FATEs** pay about twice the EXP of the other FATEs at the same level. The South Shroud level 29 boss gives
+  6,080 against 3,040 for a collect FATE. Alone, they take far longer.
+
+**The zone table, corrected from the wiki's per-zone FATE tables:**
+
+| Band | Zones |
+|---|---|
+| 22-29 | South Shroud, Southern Thanalan (25-29), Eastern Thanalan (seven FATEs at 26-29), then Upper La Noscea. Western La Noscea has nothing from 19 to 39. |
+| 36-40 | Coerthas Central Highlands (35-40). |
+| 41-44 | East Shroud, Western La Noscea, Eastern Thanalan, Mor Dhona, Outer La Noscea. Coerthas has nothing at 41-44. |
+| 45-50 | Southern Thanalan (17 FATEs at 45-49), Northern Thanalan (49), Mor Dhona (44-48), East Shroud (46-49), then Outer La Noscea (mostly bosses). |
+
+**Not changed yet (each needs a measurement first):**
+
+- collect FATEs, which the guides prefer but which need a hand-in the plugin does not do
+- measuring board EXP against FATEs from level 30
+- solo synced dungeons (Unrestricted Party with Level Sync)
+- FATEs above the player's level
