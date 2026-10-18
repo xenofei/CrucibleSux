@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.21.0",
+    "AssemblyVersion": "0.3.22.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.21/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.21/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.21/latest.zip",
-    "LastUpdate": 1792357411,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.22/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.22/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.22/latest.zip",
+    "LastUpdate": 1792358107,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Added\n\n- **Dodging area attacks during the journey:** BossMod's AI dodges only in the boards, where AutoDuty switches it on, and only with fight modules, which overworld mobs do not have.\n  - When an enemy starts casting an area attack that covers the character, the journey now steps out first: circles, donuts, cones, lines and crosses, sized from the game's own action data.\n  - It walks to the nearest spot within 25 y that clears every area being cast and that vnavmesh can reach, then carries on.\n  - The rotation keeps fighting meanwhile.\n  - An arena-wide attack, with nowhere within reach out of it, is not dodged."
+    "Changelog": "Changed\n\n- **Fleeing later:** the journey fled at around 50% HP against fast hits, because it looked 5 s ahead against a 35% floor. It now looks 2 s ahead against its own flee point, 20% by default, set in the Journey tab (\"Flee below\"). Running from an enemy 3+ levels above, or from 3+ at once outside FATEs, is unchanged.\n\nFixed\n\n- **Rotation Solver Reborn not using the job's skills:** in the play-test the character summoned its familiar but cast no weaponskills. RSR switches itself off 30 s after combat and between areas, and Crucible SUX sent \"on\" only when its own idea of RSR's state changed, so a later fight could run with RSR off. The journey now sends the mode again at the start of every fight and after every zone change."
   }
 ]
