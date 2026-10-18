@@ -97,7 +97,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - what happens when BossMod is in several collections
 - **Tests:** 166.
 
-**Combat tactics, BossMod choice and 7.57 (2026-10-18, branch `combat-tactics`; not merged to main, not released, not tested in game):**
+**Combat tactics, BossMod choice, the unlock offer and 7.57 (2026-10-18, released as v0.3.0 on the owner's "merge, push and tag v0.3.0"; not tested in game):**
 - **Owner's requests:**
   - update to the current companion plugin versions
   - let the pet and the character share aggro, by HP, optimised for the hardest degree and for the highest reachable score
@@ -124,6 +124,7 @@ On 2026-10-11 the owner confirmed in game that v0.1.0 loads and reads a characte
   - `Configuration.MechanicsPlugin` is asked once, in the BossMod window.
   - `BossModSwitch` turns off either BossMod and reloads the kept one.
   - `Integrations/BossModIpc.cs` sets `ActionTweaksConfig.PreventMovingWhileCasting=false` through `BossMod.Configuration` right after each `AutoDuty.Start`. AutoDuty restores the player's value when it stops.
+- **Unlock offer:** `Ui/UnlockPrompt.cs` asks when `JourneyRules.CanOfferUnlock` holds (once per character per game session, "don't ask again" in `UnlockOfferDeclined`). `ProgressionRunner.Start(unlockOnly: true)` plays "Strangers in the Wood", sets the gear up through `EnsureJob`, then stops.
 - **Building locally:** the dev Dalamud in `%AppData%\XIVLauncher\addon\Hooks\dev` (2026-09-29) predates the Crucible director in ClientStructs. Set `DALAMUD_HOME` to an extracted `https://goatcorp.github.io/dalamud-distrib/latest.zip`, which is what CI uses.
 - **Tests:** 9 TacticsTests, 11 BossModSwitchTests, 12 DependencyTests and 15 PreflightTests pass. The full suite was not run.
 - **Unverified in game:**
