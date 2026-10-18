@@ -16,6 +16,7 @@ public sealed class NavmeshIpc(IDalamudPluginInterface pi, IPluginLog log)
     private readonly ICallGateSubscriber<bool> isReady = pi.GetIpcSubscriber<bool>("vnavmesh.Nav.IsReady");
     private readonly ICallGateSubscriber<bool> pathfindInProgress = pi.GetIpcSubscriber<bool>("vnavmesh.SimpleMove.PathfindInProgress");
     private readonly ICallGateSubscriber<Vector3, bool, bool> moveTo = pi.GetIpcSubscriber<Vector3, bool, bool>("vnavmesh.SimpleMove.PathfindAndMoveTo");
+    private readonly ICallGateSubscriber<Vector3, bool, float, bool> moveCloseTo = pi.GetIpcSubscriber<Vector3, bool, float, bool>("vnavmesh.SimpleMove.PathfindAndMoveCloseTo");
     private readonly ICallGateSubscriber<bool> isRunning = pi.GetIpcSubscriber<bool>("vnavmesh.Path.IsRunning");
     private readonly ICallGateSubscriber<object> stop = pi.GetIpcSubscriber<object>("vnavmesh.Path.Stop");
     private readonly ICallGateSubscriber<Vector3, float, float, Vector3?> nearestPoint = pi.GetIpcSubscriber<Vector3, float, float, Vector3?>("vnavmesh.Query.Mesh.NearestPoint");
@@ -27,6 +28,9 @@ public sealed class NavmeshIpc(IDalamudPluginInterface pi, IPluginLog log)
     public bool IsBusy => this.Call(() => this.pathfindInProgress.InvokeFunc() || this.isRunning.InvokeFunc(), false);
 
     public bool MoveTo(Vector3 destination, bool fly = false) => this.Call(() => this.moveTo.InvokeFunc(destination, fly), false);
+
+    /// <summary>Like <see cref="MoveTo"/>, but the path ends once the player is within <paramref name="range"/> of the destination.</summary>
+    public bool MoveCloseTo(Vector3 destination, float range, bool fly = false) => this.Call(() => this.moveCloseTo.InvokeFunc(destination, fly, range), false);
 
     public void Stop() => this.Call(() => { this.stop.InvokeAction(); return true; }, false);
 

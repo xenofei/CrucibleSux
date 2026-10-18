@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Turning back and forth (most of all while alt-tabbed):** chasing a moving target (a beast to capture, an attacker, a FATE mob, a mob while levelling) asked vnavmesh for a new path every second. Each new path starts where the character stood when it was asked for, which the character has run past by the time the path arrives, so it turned back. At the game's low background frame rate that gap is several yalms. A chase now keeps its path while it still ends near the target, and asks vnavmesh to stop within reach of the target rather than on it. The background frame-rate setting no longer matters for this.
+
 ## [0.3.13] - 2026-10-18
 
 ### Fixed

@@ -54,6 +54,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private const float TalkRange = 3f;
     private const float MeleeRange = 3f;
 
+    /// <summary>A chase keeps its path while the target stays this close to where the path ends.</summary>
+    private const float ChaseRepathBeyond = 4f;
+
     /// <summary>Where to look around a spawn point, in yalms from it: mobs roam, and only nearby ones are loaded.</summary>
     private static readonly Vector2[] SearchPattern = [new(0, 0), new(40, 0), new(0, 40), new(-40, 0), new(0, -40)];
 
@@ -1084,10 +1087,15 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 this.game.UseGeneral(GameActions.Dismount);
             return false;
         }
-        if (now >= this.nextChase)
+        // A new path starts where the character stood when it was asked for, which it has passed by the time the path
+        // arrives; asking again while the path still leads to the target turns the character back and forth, most of all at
+        // the game's low background frame rate. So a path is kept while it still ends near the target.
+        var path = this.nav.IsBusy ? this.nav.Waypoints : [];
+        bool leadsThere = path.Count > 0 && Vector3.Distance(path[^1], target.Position) <= ChaseRepathBeyond;
+        if (!leadsThere && now >= this.nextChase)
         {
             this.nextChase = now + TimeSpan.FromSeconds(1);
-            this.nav.MoveTo(target.Position, fly: this.game.InFlight);
+            this.nav.MoveCloseTo(target.Position, MeleeRange - 0.5f + target.HitboxRadius, fly: this.game.InFlight);
         }
         return false;
     }
