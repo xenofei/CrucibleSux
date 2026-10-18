@@ -38,6 +38,11 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>A FATE whose progress has not moved for this long while the character is in it is left (a boss it cannot solo).</summary>
     private static readonly TimeSpan FateStallsAfter = TimeSpan.FromMinutes(3);
 
+    /// <summary>How far back a flight runs: mobs give up a chase once the character is far enough from where they started.</summary>
+    private const float FleeBack = 40f;
+    private const int Crumbs = 30;
+    private static readonly TimeSpan CrumbEvery = TimeSpan.FromSeconds(2);
+
     /// <summary>How long a zone left for having no FATEs is not chosen again for its measured rate.</summary>
     private static readonly TimeSpan ZoneCooldown = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan NobodyThereFor = TimeSpan.FromSeconds(30);
@@ -110,6 +115,15 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private (ushort Fate, int Progress, DateTime At) fateWatch;
     private uint leftIdle;
     private DateTime leftIdleAt;
+
+    // Fights outside the Crucible; kept across activities.
+    private readonly DamageMeter hpMeter = new();
+    private readonly DangerMap danger = new();
+    private readonly Queue<(DateTime At, Vector3 Pos)> crumbs = new();
+    private bool wasInCombat;
+    private DateTime? fleeingSince;
+    private Vector3? fleeTo;
+    private bool wasDead;
 
     public ProgressionRunner(
         ProgressionReader reader,
@@ -301,6 +315,25 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.Stop("No character is loaded.");
             return;
         }
+
+        // KO'd: accept the return to the home point; once back on its feet, the run counts a problem and goes on.
+        if (this.game.Me is ICharacter { IsDead: true })
+        {
+            this.wasDead = true;
+            this.fleeingSince = null;
+            this.rotation.Release();
+            this.dialogue.Tick(new(Yes: "home point"));
+            this.Wait(now, "The character was KO'd: returning to the home point.");
+            return;
+        }
+        if (this.wasDead)
+        {
+            this.wasDead = false;
+            this.Fail(now, "The character was KO'd and returned to its home point.");
+            return;
+        }
+        this.Watch(now);
+
         if (this.goal == JourneyGoal.Crucible && state.IsComplete(CrucibleIds.Quests.IntoTheCrucible))
         {
             this.Stop("The First Board is open: queue it in the Run tab, or turn on more of the journey.", done: true);
@@ -456,7 +489,6 @@ public sealed unsafe class ProgressionRunner : IDisposable
         ActivityKind.Quest => new(Quest: this.reader.QuestName(a.Quest), Choice: a.Step?.Choice),
         ActivityKind.UseGourd => new(Yes: this.reader.ItemName(a.Item)),
         ActivityKind.BuyGourd => new(Choice: KornagoShop.For(Purchase(a, s).Currency).Name),
-        ActivityKind.Level when this.game.Me is ICharacter { IsDead: true } => new(Yes: "home point"),
         _ => new(),
     };
 
@@ -840,14 +872,25 @@ public sealed unsafe class ProgressionRunner : IDisposable
     }
 
     /// <summary>
-    /// Fights while something has the player in combat (Travel neither mounts nor teleports then): gets off the mount,
-    /// targets what attacks the player or the beast and walks to it, since the rotation plugin fights but never moves the
-    /// character. True while it does.
+    /// Deals with whatever attacks the character or its beast (<see cref="ThreatPolicy"/>): rides on when mounted and moving,
+    /// flees from a fight it should not take, and otherwise targets the attacker and walks to it, since the rotation plugin
+    /// fights but never moves the character. False when there is nothing to do here (no fight, or riding on); true while it
+    /// handles the fight.
     /// </summary>
     private bool FightBack(DateTime now)
     {
         if (!this.game.InCombat)
             return false;
+        var attackers = this.Attackers();
+        switch (this.Assess(now, attackers, inFate: false))
+        {
+            case ThreatMove.Keep:
+                return false;
+            case ThreatMove.Flee:
+                this.Flee(now, attackers);
+                return true;
+        }
+        // Only after a flee that did not get away: a mounted character cannot fight.
         if (this.game.Mounted)
         {
             if (this.nav.IsBusy)
@@ -858,7 +901,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             return true;
         }
         this.rotation.Set(Mode.Auto, targetFreely: true);
-        if (this.Attacker() is { } attacker)
+        if (attackers.FirstOrDefault() is { } attacker)
         {
             this.game.Target(attacker);
             this.Chase(now, attacker);
@@ -873,18 +916,123 @@ public sealed unsafe class ProgressionRunner : IDisposable
         return true;
     }
 
-    /// <summary>The living enemy attacking the player or the player's beast: the current target when it is one, else the nearest.</summary>
-    private IBattleNpc? Attacker()
+    /// <summary>Flees when the fight is not one to take, as <see cref="FightBack"/> would; true while it does.</summary>
+    private bool FleeIfThreatened(DateTime now, bool inFate)
+    {
+        if (!this.game.InCombat)
+            return false;
+        var attackers = this.Attackers();
+        if (this.Assess(now, attackers, inFate) != ThreatMove.Flee)
+            return false;
+        this.Flee(now, attackers);
+        return true;
+    }
+
+    private ThreatMove Assess(DateTime now, IReadOnlyList<IBattleNpc> attackers, bool inFate)
+    {
+        if (this.game.Me is not ICharacter me)
+            return ThreatMove.Fight;
+        return ThreatPolicy.Decide(new ThreatView(
+            this.game.Mounted,
+            this.game.Mounted && this.nav.IsBusy && this.fleeingSince is null,
+            me.Level,
+            [.. attackers.Select(a => (int)a.Level)],
+            Pct(me),
+            this.hpMeter.Dtps(Actor.Player),
+            this.config.PlayerFloor,
+            this.fleeingSince is { } since ? now - since : null,
+            inFate));
+    }
+
+    /// <summary>
+    /// Runs (sprinting, or riding) back to where the character last was out of combat, at least <see cref="FleeBack"/> away,
+    /// or straight away from the attackers when there is no such place, until the enemies give up. The spot goes into the
+    /// <see cref="danger"/> map.
+    /// </summary>
+    private void Flee(DateTime now, IReadOnlyList<IBattleNpc> attackers)
     {
         if (this.game.Me is not { } me)
-            return null;
-        var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
-        var attackers = this.objects.OfType<IBattleNpc>()
-            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && ours.Contains(o.TargetObjectId))
-            .ToList();
-        return attackers.FirstOrDefault(o => o.GameObjectId == me.TargetObject?.GameObjectId)
-            ?? attackers.OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault();
+            return;
+        var here = me.Position;
+        if (this.fleeingSince is null)
+        {
+            this.fleeingSince = now;
+            this.danger.Record(this.client.TerritoryType, here.X, here.Z);
+            this.fleeTo = this.crumbs.Reverse().Select(c => (Vector3?)c.Pos).FirstOrDefault(p => Vector3.Distance(p!.Value, here) >= FleeBack)
+                ?? this.Away(here, attackers);
+            this.rotation.Release();
+            this.travel.Reset();
+            string who = string.Join(", ", attackers.Select(a => $"{a.Name.TextValue} (level {a.Level})"));
+            Plugin.Log.Information($"Journey: fleeing from {(who.Length > 0 ? who : "an attacker")}");
+        }
+        // Still in the fight on arrival: keep going, away from them.
+        if (this.fleeTo is { } to && Vector3.Distance(to, here) < 5 && !this.nav.IsBusy)
+            this.fleeTo = this.Away(here, attackers);
+        if (!this.game.Mounted && this.Ready(now, 1))
+            this.game.UseGeneral(GameActions.Sprint);
+        if (!this.nav.IsBusy && this.fleeTo is { } dest)
+            this.nav.MoveTo(dest);
+        this.Say($"Fleeing from {(attackers.Count == 1 ? attackers[0].Name.TextValue : $"{attackers.Count} enemies")}: the fight is not one to take.");
     }
+
+    /// <summary>A walkable point <see cref="FleeBack"/> yalms from <paramref name="here"/>, away from the attackers.</summary>
+    private Vector3 Away(Vector3 here, IReadOnlyList<IBattleNpc> attackers)
+    {
+        var from = attackers.Count == 0 ? here : attackers.Select(a => a.Position).Aggregate((a, b) => a + b) / attackers.Count;
+        var dir = new Vector3(here.X - from.X, 0, here.Z - from.Z);
+        dir = dir.LengthSquared() < 0.01f ? new Vector3(1, 0, 0) : Vector3.Normalize(dir);
+        var point = here + (dir * FleeBack);
+        return this.nav.Floor(point) ?? point;
+    }
+
+    /// <summary>Every tick: the HP lost in a fight, where the character has been out of combat, and the end of a flight.</summary>
+    private void Watch(DateTime now)
+    {
+        if (this.game.Me is not ICharacter me)
+            return;
+        bool combat = this.game.InCombat;
+        if (combat)
+        {
+            if (!this.wasInCombat)
+                this.hpMeter.Reset();
+            this.hpMeter.Sample(Actor.Player, now, Pct(me), tanking: true);
+        }
+        else
+        {
+            if (this.fleeingSince is not null)
+            {
+                Plugin.Log.Information("Journey: got away");
+                this.fleeingSince = null;
+                this.fleeTo = null;
+                if (this.nav.IsBusy)
+                    this.nav.Stop();
+            }
+            if (this.crumbs.Count == 0 || now - this.crumbs.Last().At >= CrumbEvery)
+            {
+                this.crumbs.Enqueue((now, me.Position));
+                while (this.crumbs.Count > Crumbs)
+                    this.crumbs.Dequeue();
+            }
+        }
+        this.wasInCombat = combat;
+    }
+
+    /// <summary>The living enemies attacking the player or the player's beast: the current target first, then nearest first.</summary>
+    private IReadOnlyList<IBattleNpc> Attackers()
+    {
+        if (this.game.Me is not { } me)
+            return [];
+        var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
+        ulong current = me.TargetObject?.GameObjectId ?? 0;
+        return [.. this.objects.OfType<IBattleNpc>()
+            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && ours.Contains(o.TargetObjectId))
+            .OrderBy(o => o.GameObjectId == current ? 0 : 1)
+            .ThenBy(o => this.game.DistanceTo(o.Position))];
+    }
+
+    private IBattleNpc? Attacker() => this.Attackers().FirstOrDefault();
+
+    private static double Pct(ICharacter c) => c.MaxHp == 0 ? 100 : 100.0 * c.CurrentHp / c.MaxHp;
 
     /// <summary>Walks into melee range of a moving target; true when there.</summary>
     private bool Chase(DateTime now, IGameObject target)
@@ -941,6 +1089,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         }
 
         // Another mob attacking comes first: weakening the prey while something else hits would get the character KO'd.
+        if (this.FleeIfThreatened(now, inFate: false))
+            return;
         if (this.Attacker() is { } other && other.GameObjectId != target.GameObjectId && this.FightBack(now))
             return;
         this.prey = target.GameObjectId;
@@ -997,6 +1147,11 @@ public sealed unsafe class ProgressionRunner : IDisposable
         var spawn = src.Spawns[this.searchPoint / SearchPattern.Length % src.Spawns.Count];
         var offset = SearchPattern[this.searchPoint % SearchPattern.Length];
         var point = Travel.ToPoint(spawn) + new Vector3(offset.X, 0, offset.Y);
+        if (this.danger.IsDangerous(spawn.Territory, point.X, point.Z))
+        {
+            this.searchPoint++;
+            return;
+        }
         this.Say($"Looking for a {src.Name} in {this.ZoneName(spawn.Territory)} ({spawn.MapX:0.0}, {spawn.MapY:0.0}).");
 
         var t = this.travel.Tick(spawn.Territory, point, 8, heightKnown: false);
@@ -1203,6 +1358,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
             }
 
             // The rotation fights what is in reach; the character walks to the FATE's enemies itself.
+            if (this.FleeIfThreatened(now, inFate: true))
+                return;
             if ((this.Attacker() ?? this.FateEnemy(f.FateId)) is { } enemy)
             {
                 this.game.Target(enemy);
@@ -1249,7 +1406,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         for (int i = 0; i < this.fates.Length; i++)
         {
             var f = this.fates[i];
-            if (f is null || f.State != FateState.Running)
+            if (f is null || f.State != FateState.Running || this.danger.IsDangerous(this.client.TerritoryType, f.Position.X, f.Position.Z))
                 continue;
             yield return new FateCandidate(f.FateId, f.Level, f.MaxLevel, f.Progress, f.TimeRemaining, this.game.DistanceTo(f.Position), f.HasBonus, NeedsHandIn(f));
         }

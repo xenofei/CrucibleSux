@@ -24,6 +24,7 @@ namespace CrucibleSux.Automation;
 public sealed unsafe class GameActions(IObjectTable objects, ICondition condition, IGameGui gameGui, IPlayerState player)
 {
     public const uint MountRoulette = 9;
+    public const uint Sprint = 4;
     public const uint Dismount = 23;
     public const uint Capture = 44880;
     public const uint TemperedRelease = 44890;

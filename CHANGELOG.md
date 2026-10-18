@@ -13,6 +13,16 @@ From the first play-test of the journey:
   - does this during travel, quests, captures, FATEs, gourds and the Kornago merchant
   - deals with an attacker before the prey during a capture, and before the FATE's own enemies in a FATE
 
+### Added
+
+- **Fight or flee outside the Crucible** (docs/research/18-threats.md):
+  - **Flee:** the character flees instead of fighting when an attacker is 3 or more levels above it, when 3 or more enemies are on it (not counted in FATEs), or when its HP would fall below the floor within 5 s at the rate it is dropping.
+  - **Where it runs:** with Sprint, back the way it came (to where it was last out of combat, at least 40 y back), until the enemies give up, then it resumes.
+  - **Mounted, it stays mounted:** riding, it rides on; standing on the mount, it rides away.
+  - **Giving up:** after a minute of fleeing without getting away, it fights.
+  - **Dangerous spots:** a spot that made it flee twice is avoided for capture searches and FATEs.
+- **KO recovery in every activity:** a KO'd character accepts the return to its home point, the run counts one problem and goes on. This used to work only while levelling.
+
 ## [0.3.4] - 2026-10-18
 
 ### Added
