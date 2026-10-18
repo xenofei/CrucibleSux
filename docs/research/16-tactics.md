@@ -15,14 +15,19 @@ Design date 2026-10-18, game 2026.09.15.0000.0000. The owner asked for two thing
 | 46751 | Snarl | 15 s | 81 | 25 y | hostile |
 | 46750 | Challenge | 15 s | 81 | 25 y | hostile |
 
-- **One shared cooldown.** Snarl and Challenge share group 81. Every 15 s there is one decision: the beast tanks or the
-  character tanks.
-- **What each does.** Snarl makes the familiar use Threaten: the familiar gains Cover for 15 s, takes top enmity and
-  takes the hits meant for the character. Challenge gives the character enmity and removes Cover
-  (DescriptionString 1733; research 13).
-- **Covered status.** The candidate status ids are 2413 and 4352 ("Covered: under the protection of an ally"); 2412 is
-  "Cover". Which one the Crucible uses is unverified. Read who an enemy is attacking from its target
-  (`IBattleNpc.TargetObjectId`), not from statuses.
+- **One shared cooldown.** Snarl and Challenge share group 81 (15 s, confirmed). Every 15 s there is one decision: the
+  beast tanks or the character tanks.
+- **What each does.** Snarl makes the familiar use Threaten (46752): the familiar takes top enmity for 15 s and gains
+  Cover, which lasts up to 45 s per the tooltip, and takes the hits meant for the character. Challenge puts the
+  character at the top of enmity for 30 s and cancels the familiar's Cover (DescriptionString 1733; research 13).
+- **Statuses.** Cover is 2412, on the familiar; Covered is 2413, on the character (awgil BossMod,
+  `ActionQueue/Melee/BST.cs` lines 120–121).
+- **Who tanks.** The familiar tanks when the character has Covered (2413) or any hostile's `IBattleNpc.TargetObjectId`
+  is the familiar's `GameObjectId`; this is how Rotation Solver Reborn reads it. The familiar is a BattleNpc with
+  `OwnerId` == the character and subkind Pet. Only one beast is out at a time (the gauge's ActiveBattlehorn).
+- **Rotation Solver Reborn also Snarls.** Its Beastmaster rotation by default uses one Snarl, only when the target has
+  status 2552, a First Board battle-1 mechanic (likely the Bone Knight's Forward Guard). Its "FamiliarTankSwap" option
+  is off by default. While any nearby enemy has 2552, Crucible SUX leaves Snarl and Challenge to it.
 
 **HP rules** (the in-game guide, DescriptionString 1732–1742):
 

@@ -31,6 +31,13 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
     public const uint OneWithNature = 4601;
     public const uint InterestCaptured = 4626;
 
+    /// <summary>Snarl (the familiar takes aggro and covers you) and Challenge (you take it back) share one 15 s cooldown.</summary>
+    public const uint Snarl = 46751;
+    public const uint Challenge = 46750;
+
+    /// <summary>On the character while the familiar's Cover (2412) protects it.</summary>
+    public const uint Covered = 2413;
+
     /// <summary>First, Second and Third Battlehorn: each summons the beast in that slot.</summary>
     public static readonly uint[] Battlehorns = [44881, 44892, 44894];
 

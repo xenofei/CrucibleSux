@@ -51,6 +51,14 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>In a board, target the enemy the game's intel says dies first (the Pas de Seul mage, the Ogre's wisps).</summary>
     public bool PickTargets { get; set; } = true;
 
+    /// <summary>In a board, hand aggro between you and the familiar with Snarl and Challenge, by HP and score.</summary>
+    public bool ShareAggro { get; set; } = true;
+
+    /// <summary>Your HP% the aggro sharing keeps you above; dying expels you from the board.</summary>
+    public int PlayerFloor { get; set; } = (int)AggroAdvisor.DefaultPlayerFloor;
+
+    public int BeastFloor { get; set; } = (int)AggroAdvisor.DefaultBeastFloor;
+
     /// <summary>Record casts, hits, movement and windows while in a board or while a run is going, for bug reports.</summary>
     public bool RecordCombat { get; set; } = true;
 

@@ -52,6 +52,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ProgressionRunner journey;
     private readonly CombatRecorder recorder;
     private readonly TargetPicker picker;
+    private readonly AggroController aggro;
     private readonly BossModGate bossMod;
     private readonly BossModPrompt bossModPrompt;
 
@@ -75,6 +76,7 @@ public sealed class Plugin : IDalamudPlugin
         this.recorder = new CombatRecorder(this.config, data, PluginInterface, ClientState, Condition, ObjectTable, TargetManager, ChatGui, AddonLifecycle,
             DataManager, Log, this.autoDuty, nav, () => this.runner.Current is not null || this.journey.Running, this.LogHeader);
         this.picker = new TargetPicker(this.config, data.TargetPriorities, ClientState, Condition, ObjectTable, TargetManager, this.recorder);
+        this.aggro = new AggroController(this.config, data, ClientState, Condition, ObjectTable, TargetManager, game, this.recorder);
         this.bossMod = new BossModGate(PluginInterface, CommandManager, ChatGui, Log, this.config, this.Save);
         this.bossModPrompt = new BossModPrompt(this.bossMod);
         var sessionTabs = new SessionTabs(this.runner, this.journey, this.session, this.config, PlayerState, this.Save, this.StartSession);
@@ -125,6 +127,7 @@ public sealed class Plugin : IDalamudPlugin
         this.runner.Update();
         this.journey.Update();
         this.picker.Update();
+        this.aggro.Update();
         this.recorder.Update();
     }
 
@@ -145,7 +148,8 @@ public sealed class Plugin : IDalamudPlugin
         var lines = new List<string>
         {
             $"Crucible SUX {PluginInterface.Manifest.AssemblyVersion}, client language {ClientState.ClientLanguage}, mode: {mode}",
-            $"Settings: {this.config.BoardRunOptions()}, kill dangerous adds first: {(this.config.PickTargets ? "on" : "off")}",
+            $"Settings: {this.config.BoardRunOptions()}, kill dangerous adds first: {(this.config.PickTargets ? "on" : "off")}, " +
+                $"share aggro: {(this.config.ShareAggro ? $"on (floors you {this.config.PlayerFloor}%, familiar {this.config.BeastFloor}%)" : "off")}",
         };
         if (this.bossMod.TurnedOff)
             lines.Add($"The original BossMod is turned off for this run{(this.bossMod.RebornReloaded ? "; BossMod Reborn was reloaded" : string.Empty)}");
