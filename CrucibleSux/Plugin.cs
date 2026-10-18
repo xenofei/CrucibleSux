@@ -170,7 +170,8 @@ public sealed class Plugin : IDalamudPlugin
         {
             case "report":
             case "report full":
-                if (this.recorder.Logs.FirstOrDefault() is not { } latest)
+                // The latest board, not the short "outside" log a session records on the way out of it.
+                if ((this.recorder.Logs.FirstOrDefault(l => l.Title != CombatRecorder.OutsideTitle) ?? this.recorder.Logs.FirstOrDefault()) is not { } latest)
                 {
                     ChatGui.PrintError("[Crucible SUX] No combat log yet: run a board first (recording is in the Log tab).");
                     break;

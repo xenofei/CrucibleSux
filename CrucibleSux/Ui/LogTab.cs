@@ -87,7 +87,7 @@ public sealed class LogTab(CombatRecorder recorder, Configuration config, Action
             ImGui.TextColored(ImGuiColors.HealerGreen, this.copied);
         }
 
-        ImGui.TextDisabled("Paste it into your report. \"/sux report\" copies the latest summary from chat.");
+        ImGui.TextDisabled("Paste it into your report. \"/sux report\" copies the latest board's summary from chat.");
         ImGui.TextDisabled($"Finished logs are also saved in {recorder.Folder}");
     }
 
