@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.2.0",
+    "AssemblyVersion": "0.3.3.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.2/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.2/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.2/latest.zip",
-    "LastUpdate": 1792344928,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.3/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.3/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.3/latest.zip",
+    "LastUpdate": 1792345598,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Fixed\n\nFrom a two-agent audit of 0.3.x:\n\n- **Potions:**\n  - They now also run when no familiar is out or no enemy is near; a character tanking alone at low HP was never healed.\n  - A potion that fails no longer counts as spent. Economic Ethos is only counted as lost when an item really leaves the bag.\n  - After AutoDuty drinks, Crucible SUX waits the same 5 s, so the two never drink for the same hit.\n  - Holding 10 items now counts Habitual Hoarder (1,000) as part of a potion's cost from the Second Board on.\n- **Selfless:**\n  - It now counts as lost only when a benched beast is hurt (only the familiar out can drink) or a beast is KO'd.\n  - The familiar out being scratched is no longer a reason to stop protecting it.\n- **Aggro:**\n  - A pause in sampling (the rotation plugin holding aggro, the familiar away) no longer counts as one huge hit.\n  - A tankbuster is never handed to a character it would take below the floor.\n  - Damage is measured for each of you separately when several enemies split their targets.\n  - A Snarl or Challenge from another plugin counts as a handoff.\n  - The target a potion borrowed is put back only if it still exists.\n- **Unlock offer:**\n  - The gear setup after \"Strangers in the Wood\" now waits for the quest's last window and event, and retries a refused equip.\n  - The gear setup also no longer waits for the Master's Bestiary, and has a 3-minute limit.\n  - A stopped run no longer leaves gear-setup steps for the next one.\n  - The offer window closes on a character switch or when a run starts, and unlock-only refuses a character that cannot take the quest.\n  - Unlock-only skips the BossMod question: the quest has no board.\n  - The Journey tab has an \"Unlock Beastmaster only\" button for later.\n- **Levelling (a second audit, and a recheck of the fastest route after 7.57):**\n  - In a FATE, the character now walks to the FATE's enemies. It used to stop at the edge and wait for them.\n  - A FATE whose progress has not moved for 3 minutes is left and not picked again (a boss it cannot solo). It used to stop the journey after 3 rounds of 15 minutes.\n  - The picker no longer prefers a nearly finished FATE that its own estimate says ends before the character gets there.\n  - It fights back while waiting to teleport to another zone.\n  - An unreachable zone is skipped. The journey stops only when no zone of the level band can be reached.\n  - A dry band no longer teleports from zone to zone forever: a zone change is no longer progress, but a FATE's progress is.\n  - A level gained mid-FATE finishes the FATE before moving to the new band, and every band change is now noticed.\n  - When KO'd while levelling, it accepts the return to the home point.\n  - The zones per level band follow the wiki's FATE tables: Eastern Thanalan for 22-29; a new 41-44 band without Coerthas, which has no FATEs there; Southern Thanalan first for 45-50. FATEs are still the fastest solo route; the faster ones need other players (docs/research/09-leveling.md).\n- **BossMod switch:** it waits a moment after the turned-off BossMod reports unloaded before checking whether the kept one is still reachable."
+    "Changelog": "Changed\n\n- The journey captures the dullahan in North Shroud from level 47; 7.57 made it capturable. Below 47 it still buys the gourd, as before."
   }
 ]
