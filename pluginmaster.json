@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.18.0",
+    "AssemblyVersion": "0.3.19.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.18/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.18/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.18/latest.zip",
-    "LastUpdate": 1792356187,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.19/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.19/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.19/latest.zip",
+    "LastUpdate": 1792356557,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Fixed\n\n- **Stuck on a ledge above a FATE:** the character flew to a ledge 14 y above a FATE, about 35 y from its centre on the map, and took that as being in the FATE. From there it could neither see nor reach its enemies. Being in a FATE now also needs the character within 10 y of the FATE's height, so on a ledge it keeps travelling. A flight that stops short then lands, and the rest of the way goes on the ground.\n- **A FATE that cannot be reached** (a cliff with no way down) is given up after 2 minutes of heading to it, and another is picked.\n\nAdded\n\n- The combat log notes mounting, flying, landing and getting off, to show where a mount gets stuck."
+    "Changelog": "Fixed\n\n- **Flying in circles after a mob:** still mounted in the air from a trip, the character chased a Trickster Imp with flying paths, which take 8-9 s each to compute and ran 130-160 y for a target 30 y away. It never landed or attacked, and it asked for a new path every second while vnavmesh was still computing the last one. A chase now lands first and goes on the ground, mounted or on foot, getting off in reach. It waits while a path is being computed."
   }
 ]
