@@ -106,7 +106,7 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             game.UseGeneral(GameActions.Dismount);
             return TravelState.Moving;
         }
-        if (!nav.MoveTo(d, fly: fly && game.Mounted))
+        if (!nav.MoveTo(d, fly: (fly && game.Mounted) || game.InFlight))
             Plugin.Log.Debug($"vnavmesh refused a path to {d}");
         return TravelState.Moving;
     }

@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Stuck hovering in the air:** after flying to a search point, the character went for the beast with a walking path. vnavmesh cannot start a walking path in mid-air ("failed to find polygon on a mesh"), so it hung there, retrying every second. Chasing a beast or an attacker, and fleeing, now ask for a flying path while the character is airborne.
+
 ## [0.3.9] - 2026-10-18
 
 ### Changed

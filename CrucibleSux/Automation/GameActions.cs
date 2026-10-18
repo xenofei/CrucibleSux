@@ -60,6 +60,9 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
 
     public bool Mounted => condition[ConditionFlag.Mounted];
 
+    /// <summary>Airborne (or swimming under water): vnavmesh must be asked for a flying path, since the start is off the walking mesh.</summary>
+    public bool InFlight => condition[ConditionFlag.InFlight] || condition[ConditionFlag.Diving];
+
     public float DistanceTo(Vector3 p) => this.Me is { } me ? Vector3.Distance(me.Position, p) : float.MaxValue;
 
     /// <summary>The nearest targetable object with this BaseId (an ENpc, EObj or BNpcBase row).</summary>

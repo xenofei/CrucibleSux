@@ -974,7 +974,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (!this.game.Mounted && this.Ready(now, 1))
             this.game.UseGeneral(GameActions.Sprint);
         if (!this.nav.IsBusy && this.fleeTo is { } dest)
-            this.nav.MoveTo(dest);
+            this.nav.MoveTo(dest, fly: this.game.InFlight);
         this.Say($"Fleeing from {(attackers.Count == 1 ? attackers[0].Name.TextValue : $"{attackers.Count} enemies")}: the fight is not one to take.");
     }
 
@@ -1054,7 +1054,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (now >= this.nextChase)
         {
             this.nextChase = now + TimeSpan.FromSeconds(1);
-            this.nav.MoveTo(target.Position);
+            this.nav.MoveTo(target.Position, fly: this.game.InFlight);
         }
         return false;
     }
