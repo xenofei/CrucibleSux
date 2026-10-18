@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.14.0",
+    "AssemblyVersion": "0.3.15.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.14/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.14/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.14/latest.zip",
-    "LastUpdate": 1792354282,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.15/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.15/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.15/latest.zip",
+    "LastUpdate": 1792354555,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Fixed\n\n- **Turning back and forth (most of all while alt-tabbed):** chasing a moving target (a beast to capture, an attacker, a FATE mob, a mob while levelling) asked vnavmesh for a new path every second. Each new path starts where the character stood when it was asked for, which the character has run past by the time the path arrives, so it turned back. At the game's low background frame rate that gap is several yalms. A chase now keeps its path while it still ends near the target, and asks vnavmesh to stop within reach of the target rather than on it. The background frame-rate setting no longer matters for this."
+    "Changelog": "Fixed\n\n- **Standing still while being hit:** when mobs attacked first (a Bog Yarzon and a Stagnant Water Sprite in the play-test), levelling left the fight to Rotation Solver Reborn. RSR neither moves the character nor starts its auto-attack, so the character stood there losing HP until the flee kicked in.\n  - A fight already under way now goes through the full fight-back: flee when it is not worth taking, else target the attacker, walk to it and turn auto-attack on, with the rotation adding its skills.\n  - Auto-attack is turned on with the hotbar toggle only while it is off, read the way BossMod reads it, so it is never switched off by mistake. This applies when fighting back, to mobs fought while levelling, to captures and to the dummy steps."
   }
 ]
