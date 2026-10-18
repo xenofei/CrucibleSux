@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- The journey captures the dullahan in North Shroud from level 47; 7.57 made it capturable. Below 47 it still buys the gourd, as before.
+
 ### Fixed
 
 From a two-agent audit of 0.3.x:

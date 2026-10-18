@@ -96,7 +96,10 @@ public static class BeastSources
         Wild(15, "crab", Kin.Wavekin, 13, [636], S(WesternThanalan, 15.9f, 16.5f)) with { Gourd = 49806, Price = 10, Currency = Faded, GourdQuest = FadedShop },
         Wild(16, "mantis", Kin.Vilekin, 16, [644], S(WesternLaNoscea, 22.5f, 22.3f)),
         Bought(17, "slime", Kin.Ashkin, 49807, 20, Faded, FadedShop),
-        Bought(18, "dullahan", Kin.Soulkin, 49808, 20, Faded, FadedShop),
+
+        // Capturable since 7.57 (also in Amdapor Keep and Tam-Tara Hard). The wiki has no open-world row; name, level and
+        // spawn are Teamcraft's.
+        Wild(18, "dullahan", Kin.Soulkin, 47, [29], S(NorthShroud, 23.1f, 20.1f)) with { Gourd = 49808, Price = 20, Currency = Faded, GourdQuest = FadedShop },
         Wild(19, "bat", Kin.Cloudkin, 7, [364], S(LowerLaNoscea, 26.8f, 15.6f)),
         Wild(20, "flying trap", Kin.Seedkin, 10, [22], S(CentralShroud, 23, 26)),
         Wild(21, "ziz", Kin.Scalekin, 16, [1181], S(WesternLaNoscea, 24.5f, 23.6f)),
