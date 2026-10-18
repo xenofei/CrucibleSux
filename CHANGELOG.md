@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Captures open with the hotbar's Auto-attack.** In the 0.3.8 play-test the "attack" action was refused twice ("Cannot execute at this time"), then the hotbar's Auto-attack started the fight, and the squirrel was captured. The hotbar action now comes first, so the two refusals no longer show.
+
 ## [0.3.8] - 2026-10-18
 
 ### Fixed

@@ -1125,13 +1125,14 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 }
                 if (!this.Ready(now, 1.5))
                     break;
-                // Until the fight starts: the attack action twice, the hotbar's Auto-attack twice, then Capture, an attack too.
+                // Until the fight starts: the hotbar's Auto-attack twice (what worked in game; the attack action was refused),
+                // then the attack action twice, then Capture, an attack too.
                 this.attackTries++;
                 string sent;
-                if (this.attackTries <= 2 && this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
-                    sent = $"the attack action: {this.game.StartAutoAttack(target)}";
-                else if (this.attackTries <= 4)
+                if (this.attackTries <= 2)
                     sent = $"the hotbar Auto-attack: {this.game.UseGeneral(GameActions.AutoAttackGeneral)}";
+                else if (this.attackTries <= 4 && this.Accepts(GameActions.AutoAttack, target, "auto-attack"))
+                    sent = $"the attack action: {this.game.StartAutoAttack(target)}";
                 else if (this.Accepts(GameActions.Capture, target, "Capture"))
                     sent = $"Capture to open the fight: {this.game.UseAction(GameActions.Capture, target.GameObjectId)}";
                 else
