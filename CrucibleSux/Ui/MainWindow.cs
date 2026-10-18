@@ -387,6 +387,34 @@ public sealed class MainWindow : Window
             this.save();
         }
         ImGui.TextDisabled("Targets enemies that buff others (the Pas de Seul's mage) and adds with arena-wide attacks (the Ogre's wisps) first, from the game's enemy intel.");
+        bool share = this.config.ShareAggro;
+        if (ImGui.Checkbox("Share aggro with the beast", ref share))
+        {
+            this.config.ShareAggro = share;
+            this.save();
+        }
+        ImGui.TextDisabled("Hands the hits between you and your familiar with Snarl and Challenge, by HP and by the score bonuses still reachable.");
+        if (share)
+        {
+            int playerFloor = this.config.PlayerFloor;
+            ImGui.SetNextItemWidth(160f);
+            if (ImGui.SliderInt("Your HP floor (%)", ref playerFloor, 10, 90))
+            {
+                this.config.PlayerFloor = playerFloor;
+                this.save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("You stop tanking before the next 15 s could take you below this. Dying ends the run.");
+            int beastFloor = this.config.BeastFloor;
+            ImGui.SetNextItemWidth(160f);
+            if (ImGui.SliderInt("Familiar HP floor (%)", ref beastFloor, 0, 90))
+            {
+                this.config.BeastFloor = beastFloor;
+                this.save();
+            }
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("The familiar stops tanking before the next 15 s could take it below this. A KO costs No Beast Left Behind.");
+        }
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Rankings");
