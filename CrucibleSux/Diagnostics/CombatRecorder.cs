@@ -77,6 +77,7 @@ public sealed unsafe class CombatRecorder : IDisposable
     private string[] nameParts = [];
     private uint territory;
     private bool inCombat;
+    private (bool Mounted, bool Flying)? riding;
     private int hpPct = -1;
     private bool dead;
     private ulong target;
@@ -197,6 +198,7 @@ public sealed unsafe class CombatRecorder : IDisposable
         this.statuses = [];
         this.territory = 0;
         this.inCombat = false;
+        this.riding = null;
         this.hpPct = -1;
         this.dead = false;
         this.target = 0;
@@ -256,6 +258,13 @@ public sealed unsafe class CombatRecorder : IDisposable
         {
             this.inCombat = combat;
             log.Add(now, LogKind.Combat, combat ? "In combat" : "Out of combat");
+        }
+
+        var ride = (this.condition[ConditionFlag.Mounted], this.condition[ConditionFlag.InFlight] || this.condition[ConditionFlag.Diving]);
+        if (ride != this.riding)
+        {
+            this.riding = ride;
+            log.Add(now, LogKind.Move, ride switch { (true, true) => "Mounted, flying", (true, false) => "Mounted, on the ground", (false, true) => "Airborne, not mounted", _ => "On foot" });
         }
 
         this.SampleCasts(now, log, me, myPos);

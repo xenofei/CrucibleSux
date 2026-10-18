@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **Stuck on a ledge above a FATE:** the character flew to a ledge 14 y above a FATE, about 35 y from its centre on the map, and took that as being in the FATE. From there it could neither see nor reach its enemies. Being in a FATE now also needs the character within 10 y of the FATE's height, so on a ledge it keeps travelling. A flight that stops short then lands, and the rest of the way goes on the ground.
+- **A FATE that cannot be reached** (a cliff with no way down) is given up after 2 minutes of heading to it, and another is picked.
+
+### Added
+
+- The combat log notes mounting, flying, landing and getting off, to show where a mount gets stuck.
+
 ## [0.3.17] - 2026-10-18
 
 ### Fixed

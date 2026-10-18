@@ -41,6 +41,11 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>How close to a FATE's centre the character goes when it sees none of the FATE's enemies.</summary>
     private const float FateCentre = 8f;
 
+    /// <summary>The height difference from a FATE's centre beyond which the character is above or below it, not in it.</summary>
+    private const float FateHeight = 10f;
+
+    private static readonly TimeSpan FateReachFor = TimeSpan.FromMinutes(2);
+
     /// <summary>Open-world mobs fought while no FATE can be joined: this far, and from this many levels under the character.</summary>
     private const float GrindRange = 100f;
     private const int GrindLevelsBelow = 4;
@@ -124,6 +129,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private readonly HashSet<uint> unreachable = [];
     private readonly HashSet<ushort> stalled = [];
     private (ushort Fate, int Progress, DateTime At) fateWatch;
+    private (ushort Fate, DateTime Since) headingTo;
     private uint leftIdle;
     private DateTime leftIdleAt;
 
@@ -1477,10 +1483,23 @@ public sealed unsafe class ProgressionRunner : IDisposable
         {
             this.since = null;
             float distance = Vector2.Distance(new(f.Position.X, f.Position.Z), new(me.Position.X, me.Position.Z));
-            if (distance > f.Radius * 0.6f && !this.game.InCombat)
+            // On a ledge above (or a hollow below) the FATE, the character is not in it, whatever the map distance says.
+            bool offLevel = MathF.Abs(me.Position.Y - f.Position.Y) > FateHeight;
+            if ((distance > f.Radius * 0.6f || offLevel) && !this.game.InCombat)
             {
+                // A FATE it cannot get to (a cliff, no way down) is given up rather than tried forever.
+                if (this.headingTo.Fate != f.FateId)
+                    this.headingTo = (f.FateId, now);
+                else if (now - this.headingTo.Since > FateReachFor)
+                {
+                    Plugin.Log.Information($"Journey: the FATE {f.Name} could not be reached in {FateReachFor.TotalMinutes:0} minutes; leaving it");
+                    this.stalled.Add(f.FateId);
+                    this.fate = 0;
+                    this.travel.Reset();
+                    return;
+                }
                 this.Say($"Heading to the FATE \"{f.Name}\" (level {f.Level}, {f.Progress}%).");
-                if (this.travel.Tick(here, f.Position, f.Radius * 0.4f) == TravelState.Failed)
+                if (this.travel.Tick(here, f.Position, MathF.Min(f.Radius * 0.4f, FateHeight)) == TravelState.Failed)
                     this.fate = 0;
                 return;
             }
