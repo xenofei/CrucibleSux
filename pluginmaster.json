@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.12.0",
+    "AssemblyVersion": "0.3.13.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.12/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.12/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.12/latest.zip",
-    "LastUpdate": 1792352897,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.13/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.13/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.13/latest.zip",
+    "LastUpdate": 1792353644,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Fixed\n\n- **Stuck hitting a striking dummy:** after the dummy step of \"Hearts Aligned\", the dummy kept the character in combat and targeting it. On the way to the next NPC, the fight-back took it for an attacker and went back to it, forever.\n  - Training dummies never count as attackers, or as mobs to fight while levelling.\n  - Being in combat with nothing real attacking no longer holds up the task: walking on drops the dummy's combat."
+    "Changelog": "Fixed\n\n- **Standing still after a striking dummy step:** the dummy's fight lingers. Levelling waited for that fight to finish, and job changes, summons, teleports and talks all wait out combat, so the character stood next to the dummy. When a training dummy is all that keeps the character in combat, outside the dummy steps themselves, it now walks away until the game ends the fight, then carries on.\n- The dummy steps now start their auto-attack with the hotbar's Auto-attack; the \"attack\" action is refused in this patch."
   }
 ]
