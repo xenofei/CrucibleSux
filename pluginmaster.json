@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.9.0",
+    "AssemblyVersion": "0.3.10.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.9/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.9/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.9/latest.zip",
-    "LastUpdate": 1792350784,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.10/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.10/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.10/latest.zip",
+    "LastUpdate": 1792351288,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Changed\n\n- **Captures open with the hotbar's Auto-attack.** In the 0.3.8 play-test the \"attack\" action was refused twice (\"Cannot execute at this time\"), then the hotbar's Auto-attack started the fight, and the squirrel was captured. The hotbar action now comes first, so the two refusals no longer show."
+    "Changelog": "Fixed\n\n- **Stuck hovering in the air:** after flying to a search point, the character went for the beast with a walking path. vnavmesh cannot start a walking path in mid-air (\"failed to find polygon on a mesh\"), so it hung there, retrying every second. Chasing a beast or an attacker, and fleeing, now ask for a flying path while the character is airborne."
   }
 ]
