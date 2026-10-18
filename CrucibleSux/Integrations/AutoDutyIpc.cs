@@ -11,8 +11,9 @@ namespace CrucibleSux.Integrations;
 
 /// <summary>
 /// AutoDuty (erdelf's fork) as the board executor, driven through its IPC only: AutoDuty has no license, so none of its
-/// code is copied here. Calls and setting names were read from its source at commit 4a0dfdc (2026-10-09). A run pushes
-/// temporary setting overrides, which AutoDuty restores when it stops, so the player's own AutoDuty settings survive.
+/// code is copied here. Calls and setting names were read from its source at commit 4a0dfdc (2026-10-09) and rechecked
+/// at 7e0ede4 (0.0.0.389, 2026-10-17). A run pushes temporary setting overrides, which AutoDuty restores when it stops,
+/// so the player's own AutoDuty settings survive.
 /// </summary>
 public sealed class AutoDutyIpc
 {

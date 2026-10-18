@@ -21,8 +21,8 @@ public sealed record RunOptions(bool TeamOfThree, bool Shop, RunGoal Goal)
 }
 
 /// <summary>
-/// The temporary AutoDuty settings a board run pushes. Names are AutoDuty's config paths at commit 4a0dfdc
-/// (Configurations/ConfigurationProfileV2.cs); AutoDuty rejects the whole push when one name is unknown.
+/// The temporary AutoDuty settings a board run pushes. Names are AutoDuty's config paths at commit 4a0dfdc, rechecked at
+/// 7e0ede4 (Configurations/ConfigurationProfileV2.cs); AutoDuty rejects the whole push when one name is unknown.
 /// </summary>
 public static class AutoDutyOverrides
 {
