@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Levelling no longer stands still when no FATE can be joined.** In the play-test, a level 5 Beastmaster waited at the aetheryte, because no FATE at its level was up. Meanwhile it now fights the nearest free mob within 100 y, from 4 levels under the character up to its level, and stays in the zone while there are any. A FATE that comes up is still joined first.
+- A fight already under way while levelling is fled when it is not one to take, as everywhere else.
+
 ## [0.3.10] - 2026-10-18
 
 ### Fixed

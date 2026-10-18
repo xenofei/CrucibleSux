@@ -38,6 +38,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>A FATE whose progress has not moved for this long while the character is in it is left (a boss it cannot solo).</summary>
     private static readonly TimeSpan FateStallsAfter = TimeSpan.FromMinutes(3);
 
+    /// <summary>Open-world mobs fought while no FATE can be joined: this far, and from this many levels under the character.</summary>
+    private const float GrindRange = 100f;
+    private const int GrindLevelsBelow = 4;
+
     /// <summary>How far back a flight runs: mobs give up a chase once the character is far enough from where they started.</summary>
     private const float FleeBack = 40f;
     private const int Crumbs = 30;
@@ -127,6 +131,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private (uint Status, uint Action) lastRefusal;
     private (CaptureMove Move, bool InReach) captureStep;
     private int attackTries;
+    private ulong grindTarget;
 
     public ProgressionRunner(
         ProgressionReader reader,
@@ -1417,24 +1422,36 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.fate = 0;
         if (this.game.InCombat)
         {
+            // A fight in progress: the rotation finishes it; one that is not worth taking is fled.
+            if (this.FleeIfThreatened(now, inFate: false))
+                return;
             this.rotation.Set(Mode.Auto, targetFreely: true);
             this.Say("Finishing the fight.");
             return;
         }
-        this.rotation.Release();
 
         uint avoid = now - this.leftIdleAt < ZoneCooldown ? this.leftIdle : 0;
         if (JourneyRules.BetterZone(zones, here, this.meter.Rate, avoid) is { } better)
         {
+            this.rotation.Release();
             this.zone = better;
             return;
         }
         if (FatePicker.Pick(this.Candidates().Where(c => !this.stalled.Contains(c.Id)), s.JobLevel) is { } pick)
         {
+            this.rotation.Release();
             this.fate = pick.Id;
             this.travel.Reset();
             return;
         }
+        // No FATE to join: nearby mobs give EXP meanwhile, and the zone stays while there are any.
+        if (this.Grind(now, s.JobLevel))
+        {
+            this.since = null;
+            return;
+        }
+        this.rotation.Release();
+        this.grindTarget = 0;
         this.since ??= now;
         this.Say($"Waiting for a FATE in {this.ZoneName(here)}.");
         if (now - this.since > IdleZoneFor)
@@ -1444,6 +1461,41 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.leftIdleAt = now;
             this.since = null;
         }
+    }
+
+    /// <summary>
+    /// Fights the nearest free open-world mob from <see cref="GrindLevelsBelow"/> levels under the character up to its level,
+    /// within <see cref="GrindRange"/>, while no FATE can be joined. False when there is none.
+    /// </summary>
+    private bool Grind(DateTime now, int level)
+    {
+        if (this.game.Me is not { } me)
+            return false;
+        var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
+        bool Fits(IBattleNpc o) =>
+            GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable
+            && o.Level <= level && o.Level >= level - GrindLevelsBelow
+            && (GameActions.HasNoTarget(o) || ours.Contains(o.TargetObjectId))
+            && ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == 0
+            && this.game.DistanceTo(o.Position) <= GrindRange
+            && !this.danger.IsDangerous(this.client.TerritoryType, o.Position.X, o.Position.Z);
+        var mob = this.objects.SearchById(this.grindTarget) is IBattleNpc kept && Fits(kept)
+            ? kept
+            : this.objects.OfType<IBattleNpc>().Where(Fits).OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault();
+        if (mob is null)
+            return false;
+        if (mob.GameObjectId != this.grindTarget)
+            Plugin.Log.Information($"Journey: no FATE to join; fighting a {mob.Name.TextValue} (level {mob.Level}) meanwhile");
+        this.grindTarget = mob.GameObjectId;
+        this.Say($"No FATE to join yet: fighting a {mob.Name.TextValue} (level {mob.Level}) meanwhile.");
+        if (!this.Chase(now, mob))
+            return true;
+        this.game.Target(mob);
+        this.rotation.Set(Mode.Manual);
+        // The hotbar's Auto-attack starts the fight (the "attack" action is refused in this patch); the rotation follows.
+        if (this.Ready(now, 1.5))
+            this.game.UseGeneral(GameActions.AutoAttackGeneral);
+        return true;
     }
 
     private IEnumerable<FateCandidate> Candidates()
