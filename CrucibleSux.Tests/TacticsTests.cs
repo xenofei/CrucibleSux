@@ -7,9 +7,9 @@ public class TacticsTests
     private static readonly DateTime T0 = new(2026, 10, 18, 12, 0, 0, DateTimeKind.Utc);
 
     /// <summary>Selfless and Self-preservation already gone: tanking costs nothing in score.</summary>
-    private static readonly ScoreOutlook Lost = ScoreOutlook.Of(0, beastHurt: true, playerHurt: true, itemUsed: false, playerRecoveryAhead: false);
+    private static readonly ScoreOutlook Lost = ScoreOutlook.Of(0, benchHurt: true, playerHurt: true, itemUsed: false, playerRecoveryAhead: false);
 
-    private static readonly ScoreOutlook Intact = ScoreOutlook.Of(0, beastHurt: false, playerHurt: false, itemUsed: false, playerRecoveryAhead: false);
+    private static readonly ScoreOutlook Intact = ScoreOutlook.Of(0, benchHurt: false, playerHurt: false, itemUsed: false, playerRecoveryAhead: false);
 
     private static AggroView View(double player, double beast, Actor holder, ScoreOutlook outlook, DateTime? now = null,
         bool final = false, bool recovery = false, PendingCast? cast = null, double potions = 0) =>
@@ -80,7 +80,7 @@ public class TacticsTests
         // A campsite ahead heals only the character, so before the boss it tanks too.
         Assert.Equal(AggroAction.Challenge, new AggroAdvisor().Decide(View(100, 100, Actor.Beast, Intact, recovery: true)).Action);
         // Once an item has been used, potions undo the familiar's damage for free: nothing is lost either way, the tie goes to the beast.
-        var ethosGone = ScoreOutlook.Of(0, beastHurt: false, playerHurt: false, itemUsed: true, playerRecoveryAhead: true);
+        var ethosGone = ScoreOutlook.Of(0, benchHurt: false, playerHurt: false, itemUsed: true, playerRecoveryAhead: true);
         Assert.Equal(AggroAction.Snarl, new AggroAdvisor().Decide(View(100, 100, Actor.Player, ethosGone, recovery: true, potions: 50)).Action);
     }
 
@@ -126,5 +126,38 @@ public class TacticsTests
 
         Assert.Equal(Actor.Player, d?.Target);
         Assert.Equal(10, d?.Potion.Percent);
+    }
+
+    [Fact]
+    public void A_pause_in_sampling_is_not_one_big_hit()
+    {
+        var m = new DamageMeter();
+        m.Sample(Actor.Player, T0, 100, tanking: true);
+        // 30% lost while nothing was sampled (the familiar was away, or the rotation plugin had aggro).
+        m.Sample(Actor.Player, T0.AddSeconds(20), 70, tanking: true);
+
+        Assert.Equal(0, m.BigHit(Actor.Player));
+    }
+
+    [Fact]
+    public void A_tankbuster_never_moves_to_a_character_it_would_take_below_the_floor()
+    {
+        // Familiar 40%, you 65%, a 35-point hit: neither stays safe, so the familiar keeps it rather than you dropping to 30%.
+        var d = new AggroAdvisor().Decide(View(65, 40, Actor.Beast, Lost, cast: new PendingCast("Crushing Blow", 3)));
+
+        Assert.NotEqual(AggroAction.Challenge, d.Action);
+    }
+
+    [Fact]
+    public void Topping_up_the_familiar_needs_Selfless_still_reachable_and_worth_the_items()
+    {
+        HeldPotion[] held = [new(0, 50)];
+        // The familiar out is hurt but the bench is not: Selfless is still in reach.
+        Assert.Equal(Actor.Beast, HealAdvisor.Decide(Heal(100, 70, Intact, 10, held))?.Target);
+        // A benched beast is hurt: only the familiar out can drink, so Selfless is gone and the potion is not worth it.
+        var bench = ScoreOutlook.Of(0, benchHurt: true, playerHurt: false, itemUsed: false, playerRecoveryAhead: false);
+        Assert.Null(HealAdvisor.Decide(Heal(100, 70, bench, 10, held)));
+        // Holding 10 items where Habitual Hoarder counts: 750 + 1,000 is more than Selfless brings.
+        Assert.Null(HealAdvisor.Decide(Heal(100, 70, Intact with { HoarderPoints = ScoreOutlook.HabitualHoarderPoints }, 10, held)));
     }
 }

@@ -1,5 +1,34 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+From a two-agent audit of 0.3.x:
+
+- **Potions:**
+  - They now also run when no familiar is out or no enemy is near; a character tanking alone at low HP was never healed.
+  - A potion that fails no longer counts as spent. Economic Ethos is only counted as lost when an item really leaves the bag.
+  - After AutoDuty drinks, Crucible SUX waits the same 5 s, so the two never drink for the same hit.
+  - Holding 10 items now counts Habitual Hoarder (1,000) as part of a potion's cost from the Second Board on.
+- **Selfless:**
+  - It now counts as lost only when a benched beast is hurt (only the familiar out can drink) or a beast is KO'd.
+  - The familiar out being scratched is no longer a reason to stop protecting it.
+- **Aggro:**
+  - A pause in sampling (the rotation plugin holding aggro, the familiar away) no longer counts as one huge hit.
+  - A tankbuster is never handed to a character it would take below the floor.
+  - Damage is measured for each of you separately when several enemies split their targets.
+  - A Snarl or Challenge from another plugin counts as a handoff.
+  - The target a potion borrowed is put back only if it still exists.
+- **Unlock offer:**
+  - The gear setup after "Strangers in the Wood" now waits for the quest's last window and event, and retries a refused equip.
+  - The gear setup also no longer waits for the Master's Bestiary, and has a 3-minute limit.
+  - A stopped run no longer leaves gear-setup steps for the next one.
+  - The offer window closes on a character switch or when a run starts, and unlock-only refuses a character that cannot take the quest.
+  - Unlock-only skips the BossMod question: the quest has no board.
+  - The Journey tab has an "Unlock Beastmaster only" button for later.
+- **BossMod switch:** it waits a moment after the turned-off BossMod reports unloaded before checking whether the kept one is still reachable.
+
 ## [0.3.1] - 2026-10-18
 
 ### Fixed

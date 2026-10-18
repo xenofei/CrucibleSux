@@ -52,8 +52,10 @@ public sealed unsafe class AggroController
     private DateTime nextItem;
     private int heldItems = -1;
     private bool itemUsed;
-    private IGameObject? restoreTarget;
+    private ulong? restoreTarget;
     private bool restorePending;
+    private bool wasCooling;
+    private DateTime ownUse;
 
     public AggroController(Configuration config, CrucibleData data, IClientState client, ICondition condition, IObjectTable objects,
         ITargetManager targets, GameActions game, CombatRecorder recorder)
@@ -77,11 +79,12 @@ public sealed unsafe class AggroController
             return;
         this.nextTick = now + TickEvery;
 
-        // A potion goes to the current target, which is put back one tick later.
+        // A potion goes to the current target, which is put back one tick later if it still exists.
         if (this.restorePending)
         {
             this.restorePending = false;
-            this.targets.Target = this.restoreTarget;
+            var back = this.restoreTarget is { } id ? this.objects.SearchById(id) : null;
+            this.targets.Target = back is ICharacter { IsDead: true } ? null : back;
         }
 
         // KOs and item use count for the whole board; each battle starts its damage meter afresh.
@@ -96,7 +99,6 @@ public sealed unsafe class AggroController
         var potions = new List<HeldPotion>();
         if (director != null)
         {
-            // An item gone from the bag was used, by Crucible SUX or by AutoDuty: Economic Ethos is lost either way.
             int held = 0;
             for (int i = 0; i < director->Inventory.Length; i++)
             {
@@ -107,8 +109,13 @@ public sealed unsafe class AggroController
                 if (HealAdvisor.Potions.TryGetValue(id, out int pct))
                     potions.Add(new HeldPotion(i, pct));
             }
+            // An item gone from the bag was used, by Crucible SUX or by AutoDuty: Economic Ethos is lost either way, and
+            // the next potion waits so two plugins never drink for the same hit.
             if (this.heldItems >= 0 && held < this.heldItems)
+            {
                 this.itemUsed = true;
+                this.nextItem = Max(this.nextItem, now + ItemGap);
+            }
             this.heldItems = held;
         }
         bool combat = this.condition[ConditionFlag.InCombat];
@@ -132,9 +139,7 @@ public sealed unsafe class AggroController
             else
                 beast ??= b;
         }
-        if (beast is null)
-            return;
-        if (beast.GameObjectId != this.beastId)
+        if (beast is not null && beast.GameObjectId != this.beastId)
         {
             this.beastId = beast.GameObjectId;
             this.advisor.Meter.ResetBeast();
@@ -143,75 +148,85 @@ public sealed unsafe class AggroController
         var enemies = this.objects.OfType<IBattleNpc>()
             .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && Vector3.Distance(o.Position, me.Position) <= Range)
             .ToList();
-        if (enemies.Count == 0)
-            return;
-        if (enemies.Any(e => GameActions.HasStatus(e, RotationSnarlsFor)))
-        {
-            if (!this.leftToRotation)
-                this.recorder.Note(LogKind.Beast, $"Aggro left to the rotation plugin: an enemy has status {RotationSnarlsFor}, which its Beastmaster rotation Snarls for");
-            this.leftToRotation = true;
-            return;
-        }
+        bool rotationOwns = enemies.Any(e => GameActions.HasStatus(e, RotationSnarlsFor));
+        if (rotationOwns && !this.leftToRotation)
+            this.recorder.Note(LogKind.Beast, $"Aggro left to the rotation plugin: an enemy has status {RotationSnarlsFor}, which its Beastmaster rotation Snarls for");
+        this.leftToRotation |= rotationOwns;
 
-        // The familiar tanks while it covers the character or an enemy attacks it.
-        Actor? holder = GameActions.HasStatus(me, GameActions.Covered) || enemies.Any(e => e.TargetObjectId == beast.GameObjectId) ? Actor.Beast
-            : enemies.Any(e => e.TargetObjectId == me.GameObjectId) ? Actor.Player
-            : null;
+        // Who takes hits, per actor: the familiar while it covers the character or an enemy attacks it; the character
+        // while an enemy attacks it and no Cover takes the hits.
+        bool covered = GameActions.HasStatus(me, GameActions.Covered);
+        bool beastTanking = beast is not null && (covered || enemies.Any(e => e.TargetObjectId == beast.GameObjectId));
+        bool playerTanking = !covered && enemies.Any(e => e.TargetObjectId == me.GameObjectId);
+        Actor? holder = beastTanking ? Actor.Beast : playerTanking ? Actor.Player : null;
         double playerHp = Pct(me);
-        double beastHp = Pct(beast);
-        this.advisor.Meter.Sample(Actor.Player, now, playerHp, holder == Actor.Player);
-        this.advisor.Meter.Sample(Actor.Beast, now, beastHp, holder == Actor.Beast);
+        double? beastHp = beast is null ? null : Pct(beast);
+        this.advisor.Meter.Sample(Actor.Player, now, playerHp, playerTanking);
+        if (beastHp is { } sampled)
+            this.advisor.Meter.Sample(Actor.Beast, now, sampled, beastTanking);
+
+        // Snarl and Challenge share one cooldown; when it starts without us, another plugin handed off.
+        bool cooling = !this.game.OffCooldown(GameActions.Snarl);
+        if (cooling && !this.wasCooling && now - this.ownUse > TimeSpan.FromSeconds(1))
+        {
+            this.advisor.NoteHandoff(now);
+            this.recorder.Note(LogKind.Beast, "Another plugin used Snarl or Challenge; waiting a window before handing off again");
+        }
+        this.wasCooling = cooling;
+
+        var present = enemies.Select(e => e.NameId).ToHashSet();
+        uint boss = this.battles.TryGetValue(board.Number, out var list)
+            ? list.Where(b => b.IsBoss && b.Enemies.Count > 0 && present.Contains(b.Enemies[0].NameId)).Select(b => b.Enemies[0].NameId).FirstOrDefault()
+            : 0;
+        bool final = boss != 0;
+        bool recovery = this.config.RunGoal == RunGoal.Clear && !final;
+        // Habitual Hoarder (holding 10 crucible items) counts from the Second Board on; XBMContent gives it 0 on the First.
+        int hoarder = board.Number >= 2 && this.heldItems == 10 ? ScoreOutlook.HabitualHoarderPoints : 0;
+        var outlook = ScoreOutlook.Of(this.knockedOut.Count, BenchHurt(beast), playerHp < 100, this.itemUsed, recovery, hoarder);
 
         // The enemy aimed at the actor giving up aggro, else the current target.
-        ulong holderId = holder == Actor.Beast ? beast.GameObjectId : me.GameObjectId;
+        ulong holderId = holder == Actor.Beast && beast is not null ? beast.GameObjectId : me.GameObjectId;
         var target = enemies.FirstOrDefault(e => e.TargetObjectId == holderId)
             ?? enemies.FirstOrDefault(e => e.GameObjectId == this.targets.Target?.GameObjectId);
-        if (target is null)
-            return;
-        bool ready = this.game.CanUse(GameActions.Snarl, target.GameObjectId) || this.game.CanUse(GameActions.Challenge, target.GameObjectId);
-
-        var cast = enemies
-            .Where(e => e.IsCasting && this.intel.TryGetValue(e.CastActionId, out var a)
-                && (a.Target == IntelTarget.HighestEnmity || (a.Shape == IntelShape.SingleTarget && a.Target is not (IntelTarget.Self or IntelTarget.Allies))))
-            .Select(e => new PendingCast(this.intel[e.CastActionId].Name, e.TotalCastTime - e.CurrentCastTime))
-            .MinBy(c => c.SecondsLeft);
-        var present = enemies.Select(e => e.NameId).ToHashSet();
-        bool final = this.battles.TryGetValue(board.Number, out var list) && list.Any(b => b.IsBoss && b.Enemies.Count > 0 && present.Contains(b.Enemies[0].NameId));
-        bool recovery = this.config.RunGoal == RunGoal.Clear && !final;
-        var outlook = ScoreOutlook.Of(this.knockedOut.Count, beastHp < 100 || TeamHurt(), playerHp < 100, this.itemUsed, recovery);
-
-        if (this.config.ShareAggro)
+        if (this.config.ShareAggro && !rotationOwns && target is not null)
         {
-            var d = this.advisor.Decide(new AggroView(now, playerHp, beastHp, holder, ready, final, recovery, outlook, cast,
+            var cast = enemies
+                .Where(e => e.IsCasting && this.intel.TryGetValue(e.CastActionId, out var a)
+                    && (a.Target == IntelTarget.HighestEnmity || (a.Shape == IntelShape.SingleTarget && a.Target is not (IntelTarget.Self or IntelTarget.Allies))))
+                .Select(e => new PendingCast(this.intel[e.CastActionId].Name, e.TotalCastTime - e.CurrentCastTime))
+                .MinBy(c => c.SecondsLeft);
+            var d = this.advisor.Decide(new AggroView(now, playerHp, beastHp, holder, !cooling, final, recovery, outlook, cast,
                 this.config.PlayerFloor, this.config.BeastFloor, this.config.UseItems ? potions.Sum(p => p.Percent) : 0));
-            if (d.Action != AggroAction.None)
+            uint action = d.Action == AggroAction.Snarl ? GameActions.Snarl : GameActions.Challenge;
+            // Out of range or sight, the chosen action waits; potions below may still be needed meanwhile.
+            if (d.Action != AggroAction.None && this.game.CanUse(action, target.GameObjectId) && this.game.UseAction(action, target.GameObjectId))
             {
-                uint action = d.Action == AggroAction.Snarl ? GameActions.Snarl : GameActions.Challenge;
-                bool used = this.game.UseAction(action, target.GameObjectId);
-                this.recorder.Note(used ? LogKind.Beast : LogKind.Warn, $"{(used ? string.Empty : "Could not use ")}{d.Action} on {target.Name.TextValue}: {d.Reason}");
+                this.ownUse = now;
+                this.recorder.Note(LogKind.Beast, $"{d.Action} on {target.Name.TextValue}: {d.Reason}");
                 return;
             }
         }
 
+        // Potions run whatever the familiar and the enemies are doing: a character alone at low HP needs them most.
         if (!this.config.UseItems || director == null || now < this.nextItem)
             return;
         bool playerSafe = playerHp - this.advisor.Meter.ProjectedLoss(Actor.Player) >= this.config.PlayerFloor;
-        var boss = final ? list!.First(b => b.IsBoss && present.Contains(b.Enemies[0].NameId)).Enemies[0].NameId : 0;
         double? bossHp = final ? enemies.Where(e => e.NameId == boss).Select(e => (double?)Pct(e)).FirstOrDefault() : null;
         var heal = HealAdvisor.Decide(new HealView(potions, playerHp, beastHp,
-            holder == Actor.Beast ? this.advisor.Meter.ProjectedLoss(Actor.Beast) : 0,
-            HandoffCanSave: this.config.ShareAggro && ready && playerSafe, final, bossHp, outlook, this.config.PlayerFloor, this.config.BeastFloor));
-        if (heal is null)
+            beastTanking ? this.advisor.Meter.ProjectedLoss(Actor.Beast) : 0,
+            HandoffCanSave: this.config.ShareAggro && !rotationOwns && !cooling && target is not null && playerSafe,
+            final, bossHp, outlook, this.config.PlayerFloor, this.config.BeastFloor));
+        if (heal is null || (heal.Target == Actor.Beast && beast is null))
             return;
+        // Whether it worked shows as the item leaving the bag on a later tick.
         this.nextItem = now + ItemGap;
-        this.restoreTarget = this.targets.Target;
+        this.restoreTarget = this.targets.Target?.GameObjectId;
         this.restorePending = true;
         this.targets.SoftTarget = null;
         this.targets.Target = heal.Target == Actor.Beast ? beast : me;
         director->UseItem((uint)heal.Potion.Slot, 0);
-        this.itemUsed = true;
-        string who = heal.Target == Actor.Beast ? beast.Name.TextValue : "you";
-        this.recorder.Note(LogKind.Beast, Inv($"Crucible SUX drinks a {heal.Potion.Percent}% Beast Potion for {who} (you {playerHp:0}%, familiar {beastHp:0}%): {heal.Reason}"));
+        string who = heal.Target == Actor.Beast ? beast!.Name.TextValue : "you";
+        this.recorder.Note(LogKind.Beast, Inv($"Crucible SUX drinks a {heal.Potion.Percent}% Beast Potion for {who} (you {playerHp:0}%, familiar {beastHp ?? 0:0}%): {heal.Reason}"));
     }
 
     /// <summary>The board's director, or null outside the Crucible.</summary>
@@ -222,19 +237,31 @@ public sealed unsafe class AggroController
         return d != null && d->InstanceContentType == InstanceContentType.CrucibleOfTheUnbroken ? (InstanceContentCrucibleOfTheUnbroken*)d : null;
     }
 
-    /// <summary>A team beast below full HP, from the board's team list (all 15 slots, benched beasts included).</summary>
-    private static bool TeamHurt()
+    /// <summary>
+    /// A team beast other than the familiar out is below full HP, from the board's team list (all 15 slots). The familiar
+    /// out is the first slot whose HP matches it; which slot it is, is not read anywhere else.
+    /// </summary>
+    private static bool BenchHurt(IBattleChara? beast)
     {
         var agent = AgentXBMPetParty.Instance();
         if (agent == null)
             return false;
+        bool skipped = beast is null;
         for (int i = 0; i < agent->PetMaxHealth.Length; i++)
         {
-            if (agent->PetMaxHealth[i] > 0 && agent->PetCurrentHealth[i] < agent->PetMaxHealth[i])
+            uint max = agent->PetMaxHealth[i], hp = agent->PetCurrentHealth[i];
+            if (!skipped && max == beast!.MaxHp && hp == beast.CurrentHp)
+            {
+                skipped = true;
+                continue;
+            }
+            if (max > 0 && hp < max)
                 return true;
         }
         return false;
     }
+
+    private static DateTime Max(DateTime a, DateTime b) => a > b ? a : b;
 
     private static string Inv(FormattableString s) => s.ToString(System.Globalization.CultureInfo.InvariantCulture);
 

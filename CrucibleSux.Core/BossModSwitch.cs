@@ -60,6 +60,14 @@ public sealed class BossModSwitch(string off = BossModSwitch.Original, bool turn
 
     public static string Enable(string internalName) => $"/xlenableplugintemp {internalName}";
 
+    /// <summary>
+    /// How long after the turned-off BossMod reports unloaded the shared IPC is judged: Dalamud can report a plugin
+    /// unloaded before its Dispose has unregistered the names.
+    /// </summary>
+    public static readonly TimeSpan Settle = TimeSpan.FromSeconds(1);
+
+    private DateTime? offGoneAt;
+
     /// <summary>The BossMod a run turns off for <paramref name="choice"/>: the one the player does not use (the original while unset).</summary>
     public static string OffFor(BossModChoice choice) => choice == BossModChoice.Original ? Reborn : Original;
 
@@ -75,6 +83,7 @@ public sealed class BossModSwitch(string off = BossModSwitch.Original, bool turn
         this.TurnedOff = true;
         this.Reloaded = false;
         this.deadline = now + Timeout;
+        this.offGoneAt = null;
         return [Disable(this.Off)];
     }
 
@@ -90,6 +99,13 @@ public sealed class BossModSwitch(string off = BossModSwitch.Original, bool turn
                 ? $"Crucible SUX could not turn {Name(this.Off)} off within 30 s. Dalamud switches a plugin only when it is in exactly one " +
                   "collection (see /xlplugins, Collections). Disable it yourself and start again."
                 : $"Crucible SUX could not reload {Name(this.Kept)} within 30 s, so AutoDuty cannot reach it. Reload it in /xlplugins and start again.");
+        }
+
+        if (this.Phase == SwitchPhase.TurningOff && !view.OffLoaded)
+        {
+            this.offGoneAt ??= now;
+            if (now - this.offGoneAt < Settle)
+                return new(SwitchOutcome.Waiting, []);
         }
 
         switch (this.Phase)

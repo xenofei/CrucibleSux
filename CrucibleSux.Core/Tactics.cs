@@ -27,6 +27,9 @@ public sealed class DamageMeter
 
     private static readonly TimeSpan Span = TimeSpan.FromSeconds(20);
 
+    /// <summary>A longer pause between samples (nothing sampled, or not tanking) starts afresh rather than count as one hit.</summary>
+    private static readonly TimeSpan MaxGap = TimeSpan.FromSeconds(1);
+
     /// <summary>Tanking time before the measured rate replaces <see cref="DefaultLoss"/>; a shorter span is too noisy.</summary>
     private static readonly TimeSpan MinSample = TimeSpan.FromSeconds(5);
 
@@ -75,7 +78,13 @@ public sealed class DamageMeter
 
         public void Add(DateTime at, double hp, bool tanking)
         {
-            if (tanking && !double.IsNaN(this.lastHp))
+            if (!tanking)
+            {
+                // Only tanking time is sampled; the next tanking sample starts from here.
+                this.lastHp = double.NaN;
+                return;
+            }
+            if (tanking && !double.IsNaN(this.lastHp) && at - this.last <= MaxGap)
             {
                 double seconds = (at - this.last).TotalSeconds;
                 // A heal is not negative damage.
@@ -105,24 +114,34 @@ public sealed class DamageMeter
 }
 
 /// <summary>The HP bonuses still reachable at the clear (docs/research/15-combat-findings.md §2).</summary>
+/// <param name="Selfless">Still reachable: no beast KO'd and none hurt beyond what a potion on the familiar out can undo.</param>
 /// <param name="BeastsKnockedOut">Beasts KO'd on this board so far.</param>
-public sealed record ScoreOutlook(bool NoBeastLeftBehind, bool Selfless, bool SelfPreservation, bool EconomicEthos, int BeastsKnockedOut)
+/// <param name="HoarderPoints">Habitual Hoarder's points a use would forfeit now (10 items held where it counts), else 0.</param>
+public sealed record ScoreOutlook(bool NoBeastLeftBehind, bool Selfless, bool SelfPreservation, bool EconomicEthos, int BeastsKnockedOut, int HoarderPoints = 0)
 {
+    public const int HabitualHoarderPoints = 1000;
+
     public const int SelflessPoints = 1000;
     public const int SelfPreservationPoints = 250;
     public const int EconomicEthosPoints = 750;
 
+    /// <summary>What using a crucible item costs now: Economic Ethos for the first of the board, and Habitual Hoarder.</summary>
+    public int ItemCost => (this.EconomicEthos ? EconomicEthosPoints : 0) + this.HoarderPoints;
+
     /// <summary>Willing Sacrifice III / II / I for 1 / 2 / 3 beasts KO'd; 0 otherwise.</summary>
     public int WillingSacrifice => this.BeastsKnockedOut switch { 1 => 750, 2 => 500, 3 => 250, _ => 0 };
 
+    /// <param name="benchHurt">A team beast other than the familiar out is below full HP. Only the familiar out can drink, so
+    /// that loses Selfless; the familiar's own lost HP is a cost the advisors weigh, not a loss.</param>
     /// <param name="playerRecoveryAhead">A campsite rest before the clear will bring the character back to 100%. Only the
     /// character: AutoDuty rests no familiar (docs/research/17-upstream-2026-10-18.md), so only a potion heals one.</param>
-    public static ScoreOutlook Of(int beastsKnockedOut, bool beastHurt, bool playerHurt, bool itemUsed, bool playerRecoveryAhead) => new(
+    public static ScoreOutlook Of(int beastsKnockedOut, bool benchHurt, bool playerHurt, bool itemUsed, bool playerRecoveryAhead, int hoarderPoints = 0) => new(
         NoBeastLeftBehind: beastsKnockedOut == 0,
-        Selfless: beastsKnockedOut == 0 && !beastHurt,
+        Selfless: beastsKnockedOut == 0 && !benchHurt,
         SelfPreservation: !playerHurt || playerRecoveryAhead,
         EconomicEthos: !itemUsed,
-        BeastsKnockedOut: beastsKnockedOut);
+        BeastsKnockedOut: beastsKnockedOut,
+        HoarderPoints: hoarderPoints);
 }
 
 /// <summary>An enemy cast the intel aims at the highest enmity or a single target: a tankbuster on whoever tanks.</summary>
@@ -179,6 +198,9 @@ public sealed class AggroAdvisor
 
     public DamageMeter Meter { get; } = new();
 
+    /// <summary>Another plugin used Snarl or Challenge: wait a window before handing off again, as after our own.</summary>
+    public void NoteHandoff(DateTime now) => this.lastHandoff = now;
+
     /// <summary>A new battle: forget its damage and the last handoff.</summary>
     public void Reset()
     {
@@ -205,8 +227,10 @@ public sealed class AggroAdvisor
         if (v.Cast is { } cast)
         {
             double hit = Math.Max(this.Meter.BigHit(holder), DamageMeter.DefaultLoss) + DamageMeter.Margin;
-            if (Headroom(holder, hit) < 0 && Headroom(other, hit) > Headroom(holder, hit))
-                return this.HandTo(other, v.Now, Inv($"{cast.Name} lands in {cast.SecondsLeft:0.0}s; {Name(holder)} at {Hp(holder):0}% would fall below its floor"));
+            // To an actor that stays safe; when neither would, the familiar takes it (your death ends the board).
+            var to = Headroom(other, hit) >= 0 ? other : Actor.Beast;
+            if (Headroom(holder, hit) < 0 && to != holder)
+                return this.HandTo(to, v.Now, Inv($"{cast.Name} lands in {cast.SecondsLeft:0.0}s; {Name(holder)} at {Hp(holder):0}% would fall below its floor"));
         }
 
         double lossP = this.Meter.ProjectedLoss(Actor.Player);
@@ -233,7 +257,7 @@ public sealed class AggroAdvisor
         {
             // Letting a safe actor take the window costs the bonus its lost HP forfeits, or the potions that undo it when
             // cheaper: Economic Ethos for the first item of the board, nothing after. A safe tank is not KO'd.
-            int Undo(double loss) => v.PotionPercent < loss ? int.MaxValue : v.Outlook.EconomicEthos ? ScoreOutlook.EconomicEthosPoints : 0;
+            int Undo(double loss) => v.PotionPercent < loss ? int.MaxValue : v.Outlook.ItemCost;
             int costB = v.Outlook.Selfless ? Math.Min(ScoreOutlook.SelflessPoints, Undo(lossB)) : 0;
             int costP = v.Outlook.SelfPreservation && !v.RecoveryAhead ? Math.Min(ScoreOutlook.SelfPreservationPoints, Undo(lossP)) : 0;
             want = costP < costB ? Actor.Player : Actor.Beast;
@@ -308,13 +332,13 @@ public static class HealAdvisor
 
         // Securing bonuses: the familiar first (Selfless is worth more), then the character from what is left.
         var left = v.Potions.ToList();
-        List<HeldPotion>? beastSet = v.BeastHp is { } bh && bh < 100 && v.Outlook.NoBeastLeftBehind ? SmallestSet(left, 100 - bh) : null;
+        List<HeldPotion>? beastSet = v.BeastHp is { } bh && bh < 100 && v.Outlook.Selfless ? SmallestSet(left, 100 - bh) : null;
         if (beastSet is not null)
             left.RemoveAll(beastSet.Contains);
         List<HeldPotion>? playerSet = v.PlayerHp < 100 ? SmallestSet(left, 100 - v.PlayerHp) : null;
 
         int worth = (beastSet is null ? 0 : ScoreOutlook.SelflessPoints) + (playerSet is null ? 0 : ScoreOutlook.SelfPreservationPoints);
-        int cost = v.Outlook.EconomicEthos ? ScoreOutlook.EconomicEthosPoints : 0;
+        int cost = v.Outlook.ItemCost;
         if (worth <= cost)
             return null;
         string reason = $"securing {worth} points for {cost}";

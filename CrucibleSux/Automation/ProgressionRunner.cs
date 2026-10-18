@@ -73,6 +73,12 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private bool notifiedWait;
     private int gearSetup;
     private int gearTries;
+    private int jobTries;
+
+    /// <summary>When unlock-only mode saw the quest complete; its gear setup must finish within <see cref="UnlockSetupLimit"/>.</summary>
+    private DateTime? unlockedAt;
+
+    private static readonly TimeSpan UnlockSetupLimit = TimeSpan.FromMinutes(3);
 
     /// <summary>The board of the session the journey started and still owns, or 0; survives <see cref="Reset"/>.</summary>
     private int boardRun;
@@ -176,8 +182,10 @@ public sealed unsafe class ProgressionRunner : IDisposable
             problems.Add("vnavmesh must be installed and enabled: it does the walking.");
         if (!this.Loaded("RotationSolver"))
             problems.Add("Rotation Solver Reborn must be installed and enabled: it does the fighting.");
+        if (unlockOnly && this.game.Me is not null && !this.CanUnlock())
+            problems.Add("This character cannot take \"Strangers in the Wood\" now, or has finished it.");
         string unused = BossModSwitch.OffFor(this.config.MechanicsPlugin);
-        if (!beforeSwitch && this.Loaded(unused))
+        if (!beforeSwitch && !unlockOnly && this.Loaded(unused))
             problems.Add($"Only the BossMod you use may be loaded, and {BossModSwitch.Name(unused)} is too. Disable it, or start from Crucible SUX so it can turn it off for the run.");
         if (this.boards.Current is not null)
             problems.Add("A board session is running; stop it first.");
@@ -204,6 +212,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (this.Running || this.Checks(unlockOnly: unlockOnly).Count > 0)
             return false;
         this.unlockOnly = unlockOnly;
+        this.unlockedAt = null;
+        this.gearSetup = this.gearTries = this.jobTries = 0;
         this.Running = true;
         this.failures = 0;
         this.skipped.Clear();
@@ -275,15 +285,21 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.Stop("No character is loaded.");
             return;
         }
+        if (this.unlockOnly && state.IsComplete(CrucibleIds.Quests.StrangersInTheWood))
+        {
+            // The job setup needs no beast list; it waits for the quest's last window and event to close.
+            this.unlockedAt ??= now;
+            if (now - this.unlockedAt > UnlockSetupLimit)
+                this.Stop($"Beastmaster is unlocked, but its gear setup did not finish within {UnlockSetupLimit.TotalMinutes:0} minutes: change to Beastmaster and set its gear up by hand.");
+            else if (this.dialogue.Tick(new(Quest: this.reader.QuestName(CrucibleIds.Quests.StrangersInTheWood))))
+                this.Waiting = this.dialogue.Waiting;
+            else if (!this.game.InEvent && !this.game.IsBusy && this.EnsureJob(now))
+                this.Stop("Beastmaster is unlocked and its gear is set up.", done: true);
+            return;
+        }
         if (beastsUnknown)
         {
             this.Wait(now, "Open the Master's Bestiary once so the game sends your beast list.");
-            return;
-        }
-        if (this.unlockOnly && state.IsComplete(CrucibleIds.Quests.StrangersInTheWood))
-        {
-            if (this.EnsureJob(now))
-                this.Stop("Beastmaster is unlocked and its gear is set up.", done: true);
             return;
         }
 
@@ -522,6 +538,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.gearTries = 0;
             return false;
         }
+        // The game can refuse the move for a moment (an event closing, the job change still landing).
+        if (++this.jobTries <= 10)
+            return false;
         this.Stop("Beastmaster has no gear set, and its weapon is not in your inventory or armoury.");
         return false;
     }
@@ -543,7 +562,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 if (this.game.ItemCount(StarterCoffer) > 0 && ++this.gearTries <= 5)
                     this.game.UseItem(StarterCoffer);
                 else
-                    this.gearSetup = 3;
+                    (this.gearSetup, this.gearTries) = (3, 0);
                 break;
             case 3:
                 if (this.game.EquipRecommended() || ++this.gearTries > 20)

@@ -9,11 +9,13 @@ namespace CrucibleSux.Ui;
 
 /// <summary>The Journey tab: the three opt-in parts of the Beastmaster journey, start and stop, and what it is doing.</summary>
 /// <param name="start">Starts the journey, turning the BossMod the player does not use off first when needed.</param>
-public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save, Action start)
+/// <param name="startUnlock">Starts it in unlock-only mode: "Strangers in the Wood" and the job's gear, then stop.</param>
+public sealed class JourneyTab(ProgressionRunner journey, Configuration config, Action save, Action start, Action startUnlock)
 {
     private static readonly TimeSpan PreviewEvery = TimeSpan.FromSeconds(1);
     private DateTime nextPreview;
     private Activity? preview;
+    private bool canUnlock;
 
     public void Draw()
     {
@@ -54,6 +56,7 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
         {
             this.nextPreview = now + PreviewEvery;
             this.preview = journey.Preview();
+            this.canUnlock = journey.CanUnlock();
         }
         if (this.preview is { } next)
         {
@@ -71,6 +74,14 @@ public sealed class JourneyTab(ProgressionRunner journey, Configuration config, 
         {
             if (ImGui.Button("Start journey"))
                 start();
+        }
+        if (this.canUnlock)
+        {
+            ImGui.SameLine();
+            if (ImGui.Button("Unlock Beastmaster only"))
+                startUnlock();
+            if (ImGui.IsItemHovered())
+                ImGui.SetTooltip("Picks up \"Strangers in the Wood\", plays it through, switches to Beastmaster and sets up its gear, then stops.");
         }
         ImGui.SameLine();
         ImGui.TextDisabled("Unattended automation is against the game's terms of service.");

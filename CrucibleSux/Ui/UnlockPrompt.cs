@@ -10,7 +10,8 @@ namespace CrucibleSux.Ui;
 
 /// <summary>
 /// Offers to unlock Beastmaster when a character can take "Strangers in the Wood" and has not finished it: once per
-/// character per game session, never again after "don't ask again", and only while nothing runs.
+/// character while the plugin is loaded, never again after "don't ask again", and only while nothing runs. The Journey
+/// tab has the same start for later.
 /// </summary>
 /// <param name="start">Starts the journey in unlock-only mode, through the BossMod question when needed.</param>
 public sealed class UnlockPrompt(ProgressionRunner journey, Configuration config, Action save, Action start)
@@ -26,6 +27,9 @@ public sealed class UnlockPrompt(ProgressionRunner journey, Configuration config
     public void Update(ulong character, bool idle)
     {
         var now = DateTime.UtcNow;
+        // The offer is for the character it was made to, and only while nothing else runs.
+        if (this.IsOpen && (character != this.Character || journey.Running))
+            this.IsOpen = false;
         if (this.IsOpen || character == 0 || !idle || now < this.nextCheck)
             return;
         this.nextCheck = now + CheckEvery;

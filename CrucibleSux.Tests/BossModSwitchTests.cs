@@ -46,7 +46,9 @@ public class BossModSwitchTests
         var s = new BossModSwitch();
         s.Begin(View(), T0);
 
-        var step = s.Tick(View(off: false), T0.AddSeconds(1));
+        // The shared IPC is judged only a moment after the original reports unloaded.
+        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(off: false), T0.AddSeconds(1)).Outcome);
+        var step = s.Tick(View(off: false), T0.AddSeconds(2));
 
         Assert.Equal(SwitchOutcome.Ready, step.Outcome);
         Assert.False(s.Reloaded);
@@ -59,15 +61,16 @@ public class BossModSwitchTests
         var s = new BossModSwitch();
         s.Begin(View(), T0);
 
-        var off = s.Tick(View(off: false, ipc: false), T0.AddSeconds(1));
+        Assert.Empty(s.Tick(View(off: false, ipc: false), T0.AddSeconds(1)).Commands);
+        var off = s.Tick(View(off: false, ipc: false), T0.AddSeconds(2));
         Assert.Equal(["/xldisableplugintemp BossModReborn"], off.Commands);
-        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(off: false, ipc: false), T0.AddSeconds(2)).Outcome);
+        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(off: false, ipc: false), T0.AddSeconds(3)).Outcome);
 
-        var on = s.Tick(View(off: false, kept: false, ipc: false), T0.AddSeconds(3));
+        var on = s.Tick(View(off: false, kept: false, ipc: false), T0.AddSeconds(4));
         Assert.Equal(["/xlenableplugintemp BossModReborn"], on.Commands);
-        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(off: false, ipc: false), T0.AddSeconds(4)).Outcome);
+        Assert.Equal(SwitchOutcome.Waiting, s.Tick(View(off: false, ipc: false), T0.AddSeconds(5)).Outcome);
 
-        Assert.Equal(SwitchOutcome.Ready, s.Tick(View(off: false), T0.AddSeconds(5)).Outcome);
+        Assert.Equal(SwitchOutcome.Ready, s.Tick(View(off: false), T0.AddSeconds(6)).Outcome);
         Assert.True(s.Reloaded);
     }
 
@@ -112,6 +115,7 @@ public class BossModSwitchTests
         var s = new BossModSwitch();
         s.Begin(View(), T0);
         s.Tick(View(off: false, ipc: false), T0.AddSeconds(1));
+        s.Tick(View(off: false, ipc: false), T0.AddSeconds(2));
 
         Assert.Equal(["/xlenableplugintemp BossModReborn", "/xlenableplugintemp BossMod"], s.Restore(View(off: false, kept: false, ipc: false)));
     }
@@ -127,9 +131,10 @@ public class BossModSwitchTests
         Assert.Equal(BossModSwitch.Original, s.Kept);
 
         Assert.Equal(["/xldisableplugintemp BossModReborn"], s.Begin(View(), T0));
-        Assert.Equal(["/xldisableplugintemp BossMod"], s.Tick(View(off: false, ipc: false), T0.AddSeconds(1)).Commands);
-        Assert.Equal(["/xlenableplugintemp BossMod"], s.Tick(View(off: false, kept: false, ipc: false), T0.AddSeconds(2)).Commands);
-        Assert.Equal(SwitchOutcome.Ready, s.Tick(View(off: false), T0.AddSeconds(3)).Outcome);
+        Assert.Empty(s.Tick(View(off: false, ipc: false), T0.AddSeconds(1)).Commands);
+        Assert.Equal(["/xldisableplugintemp BossMod"], s.Tick(View(off: false, ipc: false), T0.AddSeconds(2)).Commands);
+        Assert.Equal(["/xlenableplugintemp BossMod"], s.Tick(View(off: false, kept: false, ipc: false), T0.AddSeconds(3)).Commands);
+        Assert.Equal(SwitchOutcome.Ready, s.Tick(View(off: false), T0.AddSeconds(4)).Outcome);
         Assert.True(s.Reloaded);
 
         Assert.Equal(["/xlenableplugintemp BossModReborn"], s.Restore(View(off: false)));

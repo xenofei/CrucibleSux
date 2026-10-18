@@ -62,6 +62,9 @@ public sealed class BossModGate : IDisposable
     /// <summary><see cref="Off"/> is off because Crucible SUX turned it off.</summary>
     public bool TurnedOff => this.@switch.TurnedOff;
 
+    /// <summary>A question is open, or a switch or the start waiting on it is under way.</summary>
+    public bool Busy => this.Asking is not null || this.pending is not null || this.@switch.Phase != SwitchPhase.Idle;
+
     public bool Reloaded => this.@switch.Reloaded;
 
     public void Dispose()

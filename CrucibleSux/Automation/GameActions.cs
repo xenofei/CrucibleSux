@@ -88,6 +88,12 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
         return am != null && am->GetActionStatus(ActionType.Action, action, target) == 0;
     }
 
+    public bool OffCooldown(uint action)
+    {
+        var am = ActionManager.Instance();
+        return am == null || am->IsActionOffCooldown(ActionType.Action, action);
+    }
+
     public bool UseAction(uint action, ulong target = 0xE0000000)
     {
         var am = ActionManager.Instance();
