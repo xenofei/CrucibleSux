@@ -3,7 +3,7 @@
     "Author": "Michiru Tsukikage",
     "Name": "Crucible SUX",
     "InternalName": "CrucibleSux",
-    "AssemblyVersion": "0.3.4.0",
+    "AssemblyVersion": "0.3.5.0",
     "Description": "Crucible SUX (Set-and-forget Unbroken eXecutor) tracks your Beastmaster's Crucible of the Unbroken progress: boards, degrees, Apex and Legendary scores, beasts befriended and their ranks.\nIt checks whether you can clear the remaining boards in one sitting and suggests a team per board.\nIts session queue runs boards through AutoDuty (erdelf's build), watches every run, stops a stuck one and reports back. Its opt-in journey does the Beastmaster job quests, collects the beasts and levels the job to 50, each part off by default. Unattended automation is against the game's terms of service: use it at your own risk.",
     "ApplicableVersion": "any",
     "RepoUrl": "https://github.com/xenofei/CrucibleSux",
@@ -21,13 +21,13 @@
     "IconUrl": "https://raw.githubusercontent.com/xenofei/CrucibleSux/main/assets/icon.png",
     "Punchline": "Set-and-forget Unbroken eXecutor: queue the Crucible of the Unbroken boards, step away, come back to a report.",
     "AcceptsFeedback": true,
-    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.4/latest.zip",
-    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.4/latest.zip",
-    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.4/latest.zip",
-    "LastUpdate": 1792347468,
+    "DownloadLinkInstall": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.5/latest.zip",
+    "DownloadLinkTesting": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.5/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/xenofei/CrucibleSux/releases/download/v0.3.5/latest.zip",
+    "LastUpdate": 1792348449,
     "DownloadCount": 0,
     "IsHide": false,
     "IsTestingExclusive": false,
-    "Changelog": "Added\n\n- **Go on to the Crucible:** after the unlock, Crucible SUX can carry on with the Beastmaster job quests until \"Into the Crucible\" opens the First Board, then stop.\n  - Along the way it levels to each quest's level and captures the beasts the quests ask for (15 by \"Into the Crucible\", level 30). It does this whatever the Journey tab's parts say.\n  - The offer window now has \"Unlock and go on to the Crucible\" next to \"Unlock Beastmaster\". A character that already has Beastmaster but not the Crucible is offered \"Go on to the Crucible\" instead.\n  - The Journey tab has the same buttons.\n  - No board runs before it stops, so the BossMod question is skipped."
+    "Changelog": "Fixed\n\nFrom the first play-test of the journey:\n\n- **Captures never started.** A wild beast that targets nobody holds the game's \"no object\" id, not 0, so every free squirrel looked as if it were fighting someone else, and the search walked past them. They are now recognised.\n- **Attacks were not fought back.** The character used to stand still: Rotation Solver Reborn fights but never moves the character, and a mounted character cannot fight. When something attacks the character or its beast, the character now:\n  - gets off its mount\n  - targets the attacker and walks to it while the rotation fights\n  - does this during travel, quests, captures, FATEs, gourds and the Kornago merchant\n  - deals with an attacker before the prey during a capture, and before the FATE's own enemies in a FATE\n\nAdded\n\n- **Fight or flee outside the Crucible** (docs/research/18-threats.md):\n  - **Flee:** the character flees instead of fighting when an attacker is 3 or more levels above it, when 3 or more enemies are on it (not counted in FATEs), or when its HP would fall below the floor within 5 s at the rate it is dropping.\n  - **Where it runs:** with Sprint, back the way it came (to where it was last out of combat, at least 40 y back), until the enemies give up, then it resumes.\n  - **Mounted, it stays mounted:** riding, it rides on; standing on the mount, it rides away.\n  - **Giving up:** after a minute of fleeing without getting away, it fights.\n  - **Dangerous spots:** a spot that made it flee twice is avoided for capture searches and FATEs.\n- **KO recovery in every activity:** a KO'd character accepts the return to its home point, the run counts one problem and goes on. This used to work only while levelling."
   }
 ]
