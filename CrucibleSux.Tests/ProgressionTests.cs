@@ -257,7 +257,7 @@ public class BeastSourceTests
     [Fact]
     public void Counts_match_the_sheets()
     {
-        Assert.Equal(37, BeastSources.All.Count(b => b.CanCapture));
+        Assert.Equal(38, BeastSources.All.Count(b => b.CanCapture));
         Assert.Equal(15, BeastSources.All.Count(b => b.IsSold));
         Assert.Equal(16, BeastSources.All.Select(b => b.Gourd).Where(g => g != 0).Distinct().Count());
         Assert.All(BeastSources.All.Where(b => b.Gourd != 0), b => Assert.InRange(b.Gourd, 49805u, 49820u));

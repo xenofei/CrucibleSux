@@ -29,9 +29,9 @@ Beast-count objectives count **unique beasts owned** (Cu Sith included), so gour
 ## Beasts (XBMPet 1–50)
 
 - **1 Cu Sith:** quest 71026 gives its gourd.
-- **Open-world capture (`key=1`), 37 beasts.** Zone per beast:
+- **Open-world capture (`key=1`), 37 beasts, plus 18 dullahan since 7.57.** Zone per beast:
   - Central Shroud: 2 squirrel, 8 diremite, 13 geshunpest, 20 flying trap, 34 raptor, 36 treant, 39 morbol, 41 salamander
-  - North Shroud: 5 opo-opo
+  - North Shroud: 5 opo-opo, 18 dullahan (7.57; level 47-48, BNpcName 29 at map (23.1, 20.1), from Teamcraft)
   - Middle La Noscea: 3 lamb, 4 pugil, 9 megalocrab, 12 mandragora, 14 puk, 26 buffalo, 40 ghost
   - Lower La Noscea: 6 dodo, 19 bat, 30 goobbue, 31 gigantoad
   - Eastern La Noscea: 24 apkallu, 32 colibri
@@ -41,7 +41,7 @@ Beast-count objectives count **unique beasts owned** (Cu Sith included), so gour
   - Central Thanalan: 10 wespe, 25 adamantoise, 29 spriggan
   - Southern Thanalan: 23 golem, 28 worm, 35 drake
   - Mor Dhona: 42 cobra
-- **Gourd only (`key=2`, column 7 = InstanceContent of the duty the beast lives in), 12 beasts:** 17 slime (Copperbell Mines), 18 dullahan (Halatali), 37 antling and 38 chimera (Cutter's Cry), 43 hydra (the Heroes' Gauntlet / A Relic Reborn: the Hydra), 44 damselfly and 45 rotting goobbue (Amdapor), 46 zu (Pharos Sirius), 47 ice golem (Snowcloak), 48 Karlabos (Sastasha Hard), 49 rafflesia (T6 / Tender Valley), 50 behemoth (Labyrinth of the Ancients). This decodes the old "special source" question.
+- **Gourd only (`key=2`, column 7 = InstanceContent of the duty the beast lives in), 12 beasts:** 17 slime (Copperbell Mines), 18 dullahan (Halatali; capturable in the open world since 7.57, see above), 37 antling and 38 chimera (Cutter's Cry), 43 hydra (the Heroes' Gauntlet / A Relic Reborn: the Hydra), 44 damselfly and 45 rotting goobbue (Amdapor), 46 zu (Pharos Sirius), 47 ice golem (Snowcloak), 48 Karlabos (Sastasha Hard), 49 rafflesia (T6 / Tender Valley), 50 behemoth (Labyrinth of the Ancients). This decodes the old "special source" question.
 - **Capture statuses:**
   - 4624 Capturing Interest
   - 4626 **Interest Captured**: "alliance will be determined upon incapacitation"
