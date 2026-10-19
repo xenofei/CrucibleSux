@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Numerics;
 using CrucibleSux.Core;
 using CrucibleSux.Integrations;
@@ -27,12 +28,14 @@ public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIp
     private readonly CastAreas areas = new(data, objects);
     private readonly List<AoeThreat> threats = [];
     private Vector3? spot;
+    private string? noSpotFor;
 
     /// <summary>The cast being stepped out of, or null.</summary>
     public string? Dodging { get; private set; }
 
     /// <summary>True while it moves the character out of an area; the caller does nothing else meanwhile.</summary>
-    public bool Tick()
+    /// <param name="keepTarget">Prefer spots in reach of the target (fighting); false while fleeing from it.</param>
+    public bool Tick(bool keepTarget = true)
     {
         this.threats.Clear();
         if (game.Me is not IBattleChara me || game.InFlight)
@@ -53,32 +56,54 @@ public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIp
         // Keep heading for the spot already chosen while it stays clear.
         if (this.spot is { } chosen && !AoeDodge.InDanger(this.threats, Flat(chosen)))
         {
-            if (!nav.IsBusy)
-                nav.MoveTo(chosen);
+            this.Head(chosen);
             return true;
         }
         this.spot = null;
-        // A melee character steps aside rather than away: spots that keep the target in reach come first.
-        var target = me.TargetObject as IBattleNpc;
-        var near = target is null ? (Vector2?)null : Flat(target.Position);
-        int tried = 0;
-        foreach (var p in AoeDodge.SafeSpots(this.threats, Flat(me.Position), near, target is null ? 0 : Reach + target.HitboxRadius))
-        {
-            if (++tried > SpotsTried)
-                break;
-            if (this.Reachable(p, me.Position.Y) is { } r)
-            {
-                this.spot = r;
-                break;
-            }
-        }
+        // A melee character steps aside rather than away: spots that keep the target in reach come first. If none of those
+        // can be walked to, the nearest clear spot anywhere will do.
+        var target = keepTarget ? me.TargetObject as IBattleNpc : null;
+        if (target is not null)
+            this.spot = this.FirstReachable(AoeDodge.SafeSpots(this.threats, Flat(me.Position), Flat(target.Position), Reach + target.HitboxRadius)
+                .Where(p => Vector2.Distance(p, Flat(target.Position)) <= Reach + target.HitboxRadius), me.Position.Y);
+        this.spot ??= this.FirstReachable(AoeDodge.SafeSpots(this.threats, Flat(me.Position)), me.Position.Y);
         if (this.spot is not { } go)
+        {
+            if (name != this.noSpotFor)
+                Plugin.Trace($"Journey: inside {name} with no reachable spot clear of it ({this.threats.Count} areas being cast)");
+            this.noSpotFor = name;
             return this.Clear();
+        }
+        this.noSpotFor = null;
         Plugin.Trace($"Journey: stepping out of {name}");
+        this.Head(go);
+        return true;
+    }
+
+    /// <summary>
+    /// Walks to <paramref name="spot"/>, replacing any other path: one still being computed (a chase, a flight) is not
+    /// cancelled by a stop, and would win, so the move is asked for again on later ticks until the path ends there.
+    /// </summary>
+    private void Head(Vector3 spot)
+    {
+        var path = nav.IsBusy ? nav.Waypoints : [];
+        if (path.Count > 0 && Vector3.Distance(path[^1], spot) <= AoeDodge.Clearance)
+            return;
+        if (nav.Pathfinding)
+            return;
         if (nav.IsBusy)
             nav.Stop();
-        nav.MoveTo(go);
-        return true;
+        nav.MoveTo(spot);
+    }
+
+    private Vector3? FirstReachable(IEnumerable<Vector2> spots, float y)
+    {
+        foreach (var p in spots.Take(SpotsTried))
+        {
+            if (this.Reachable(p, y) is { } r)
+                return r;
+        }
+        return null;
     }
 
     /// <summary>True while an enemy area is being cast near the character (as of the last <see cref="Tick"/>).</summary>

@@ -55,6 +55,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     private const float FleeBack = 40f;
     private const int Crumbs = 30;
     private static readonly TimeSpan SaidAgainAfter = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ChaseGivesUpAfter = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan FleeStuckAfter = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan CrumbEvery = TimeSpan.FromSeconds(2);
 
@@ -146,6 +147,13 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     private Vector3? fleeTo;
     private bool wasDead;
     private string? saidShape;
+
+    /// <summary>Enemies a chase got no closer to for <see cref="ChaseGivesUpAfter"/> (a ledge, water): not picked again.</summary>
+    private readonly HashSet<ulong> outOfReach = [];
+    private (ulong Id, float Best, DateTime Since) chased;
+    private bool waitingOutside;
+    private int familiarTries;
+    private DateTime nextFamiliarTry;
     private readonly Dictionary<string, DateTime> said = [];
 
     /// <summary>Got away from a fight: rests until HP is full before carrying on (the owner's rule).</summary>
@@ -292,6 +300,9 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         this.Status = "Starting.";
         this.saidShape = null;
         this.said.Clear();
+        this.recovering = false;
+        this.outOfReach.Clear();
+        this.familiarTries = 0;
         Plugin.Trace($"Journey started: {this.Options}");
         this.chat.Print("[Crucible SUX] Beastmaster journey started. \"/sux stop\" stops it.");
         return true;
@@ -312,7 +323,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         this.LastResult = reason;
         this.Waiting = null;
         this.Activity = null;
-        Plugin.Trace($"Journey stopped: {reason}");
+        Plugin.Trace($"Journey {(done ? "finished" : "stopped")}: {reason}", important: !done);
         this.chat.Print($"[Crucible SUX] Journey {(done ? "finished" : "stopped")}: {reason}");
         this.notifications.AddNotification(new Notification
         {
@@ -374,7 +385,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         this.Watch(now);
 
         // An enemy area attack covering the character comes before everything else.
-        if (this.dodger.Tick())
+        if (this.dodger.Tick(keepTarget: this.fleeingSince is null))
         {
             this.Say($"Stepping out of {this.dodger.Dodging}.");
             return;
@@ -436,6 +447,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         {
             this.fingerprint = fp;
             this.lastProgress = now;
+            this.failures = 0;
         }
         if (now - this.lastProgress > StuckAfter)
         {
@@ -454,7 +466,11 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         if (activity.Kind != ActivityKind.RunBoard && this.dialogue.Tick(this.Expect(activity, state)))
         {
             if (this.dialogue.Waiting is { } w)
+            {
+                if (this.game.InCombat && this.FightBack(now))
+                    return;
                 this.Wait(now, w);
+            }
         }
         else if (!this.game.IsBusy)
         {
@@ -586,6 +602,32 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     }
 
     /// <summary>
+    /// What the journey sees while the character stands still, for the combat log: its status, what blocks a step, the
+    /// path, the rotation, the swings, the target and the dodger. Null when the journey is not running.
+    /// </summary>
+    public string? StillReport()
+    {
+        if (!this.Running)
+            return null;
+        var parts = new List<string> { $"\"{this.Status}\"" };
+        if (this.game.IsBusy)
+            parts.Add("busy (casting, jumping, a cutscene or a zone change)");
+        if (this.game.InEvent)
+            parts.Add("in an event or a window");
+        parts.Add(this.nav.IsReady ? this.nav.Pathfinding ? "vnavmesh computing a path" : this.nav.IsBusy ? "vnavmesh walking" : "vnavmesh idle" : "vnavmesh not ready");
+        bool? rsr = this.rotation.Active();
+        parts.Add($"RSR {(rsr switch { true => "on", false => "off", _ => "?" })}, asked {this.rotation.Requested?.ToString() ?? "nothing"}");
+        parts.Add(this.game.IsAutoAttacking ? "auto-attack on" : "auto-attack off");
+        if (this.game.Me?.TargetObject is { } t)
+            parts.Add(FormattableString.Invariant($"target {t.Name.TextValue} {MathF.Max(0, this.game.DistanceTo(t.Position) - t.HitboxRadius):0.0} y off"));
+        if (this.dodger.Active)
+            parts.Add("an enemy area is being cast");
+        if (this.recovering)
+            parts.Add("resting after a flight");
+        return string.Join(", ", parts);
+    }
+
+    /// <summary>
     /// Puts a new status into the logs: once per wording, numbers aside ("HP 43%" and "HP 52%" are one), and not again
     /// within <see cref="SaidAgainAfter"/>, so two states that alternate every frame do not flood the log.
     /// </summary>
@@ -594,10 +636,10 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         string shape = Digits().Replace(status, "#");
         if (shape == this.saidShape)
             return;
-        this.saidShape = shape;
         var now = DateTime.UtcNow;
         if (this.said.TryGetValue(shape, out var at) && now - at < SaidAgainAfter)
             return;
+        this.saidShape = shape;
         this.said[shape] = now;
         Plugin.Trace($"Journey: {status}");
     }
@@ -618,11 +660,12 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         this.notifications.AddNotification(new Notification { Title = "Crucible SUX needs you", Content = what, Type = NotificationType.Info });
     }
 
-    private void Fail(DateTime now, string reason)
+    /// <param name="skipHunt">The hunt itself failed: the beast is skipped for this run. A KO or a stall during it is not.</param>
+    private void Fail(DateTime now, string reason, bool skipHunt = false)
     {
         this.failures++;
         Plugin.Trace($"Journey problem {this.failures}/{MaxFailures}: {reason}", LogKind.Warn);
-        if (this.hunt != 0)
+        if (skipHunt && this.hunt != 0)
             this.skipped.Add(this.hunt);
         if (this.failures >= MaxFailures)
         {
@@ -717,6 +760,8 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     private void DoQuest(DateTime now, Activity a, ProgressionState s)
     {
         var q = QuestScripts.ById(a.Quest);
+        if (this.FightBack(now))
+            return;
         if (!q.AnyJob && !this.EnsureJob(now))
             return;
         if (a.Step is not { } first)
@@ -837,8 +882,13 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
             this.Wait(now, $"Put the {BeastSources.ById(beast).Name} on a Battlehorn in the Master's Bestiary. The journey carries on once it is there.");
             return false;
         }
-        if (this.game.InCombat)
+        if (this.game.InCombat && !this.game.CanUse(GameActions.Battlehorns[slot]))
+        {
+            // A striking dummy's fight lingers after the step before; the next beast comes out once it ends.
+            if (this.Attackers().Count == 0 && !this.LeaveDummyCombat())
+                this.Say($"Waiting for the fight to end to call the {BeastSources.ById(beast).Name}.");
             return false;
+        }
         if (this.Ready(now, 2))
         {
             if (this.game.Mounted)
@@ -847,6 +897,31 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
                 this.game.UseAction(GameActions.Battlehorns[slot]);
         }
         return false;
+    }
+
+    /// <summary>
+    /// Out of combat with no familiar out, calls the one on the first Battlehorn that holds a beast, so a fight starts with
+    /// it (after a KO, a zone change or a mount it may be gone); in combat the rotation calls them. True while it does.
+    /// Three tries at most, in case the familiar is out but not recognised.
+    /// </summary>
+    private bool EnsureFamiliar(DateTime now)
+    {
+        if (this.game.InCombat || this.game.SummonedBeast() != 0)
+        {
+            if (this.game.SummonedBeast() != 0)
+                this.familiarTries = 0;
+            return false;
+        }
+        if (this.familiarTries >= 3 || now < this.nextFamiliarTry || this.game.FirstHornBeast() is not { } beast)
+            return false;
+        if (this.Summon(now, beast))
+            return false;
+        if (this.familiarTries == 0)
+            Plugin.Trace($"Journey: no familiar out; calling the {BeastSources.ById(beast).Name}");
+        this.familiarTries++;
+        this.nextFamiliarTry = now + TimeSpan.FromSeconds(3);
+        this.Say($"Calling the {BeastSources.ById(beast).Name} before the fight.");
+        return true;
     }
 
     /// <summary>The striking dummy nearest <paramref name="at"/>, walking there first; null until one is in reach.</summary>
@@ -871,6 +946,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
             return false;
         this.game.Target(dummy);
         this.rotation.Set(Mode.Manual);
+        this.game.EnsureAutoAttack(dummy);
         return false;
     }
 
@@ -915,6 +991,13 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         if (this.game.InCombat)
         {
             this.rotation.Set(Mode.Auto, targetFreely: true);
+            // The battle's enemies need not be attacking the character (an NPC ally may hold them): the nearest in combat.
+            if ((this.Attacker() ?? this.NearestFighting(at)) is { } enemy)
+            {
+                this.game.Target(enemy);
+                if (this.Chase(now, enemy))
+                    this.game.EnsureAutoAttack(enemy);
+            }
             return false;
         }
         var t = this.travel.Tick(at.Territory, new Vector3(at.X, at.Y, at.Z), at.Radius);
@@ -928,6 +1011,15 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         }
         return false;
     }
+
+    /// <summary>The nearest living hostile in combat within the battle's area, or null.</summary>
+    private IBattleNpc? NearestFighting(Spot at) =>
+        this.objects.OfType<IBattleNpc>()
+            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o)
+                && (o.StatusFlags & Dalamud.Game.ClientState.Objects.Enums.StatusFlags.InCombat) != 0
+                && Vector2.Distance(new(o.Position.X, o.Position.Z), new(at.X, at.Z)) <= MathF.Max(at.Radius, 30f))
+            .OrderBy(o => this.game.DistanceTo(o.Position))
+            .FirstOrDefault();
 
     /// <summary>Walks (never rides) to the escort's next stop, fighting off what attacks, then talks to the escorted NPC.</summary>
     private bool Escort(DateTime now, QuestStep step)
@@ -1208,15 +1300,25 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
                 this.game.UseGeneral(GameActions.Dismount);
             return false;
         }
+        // No closer for a while (a ledge, water, a wall): given up, so the callers pick another enemy. Waiting outside an area
+        // does not count.
+        if (this.chased.Id != target.GameObjectId || distance < this.chased.Best - 1f || this.dodger.Active)
+            this.chased = (target.GameObjectId, MathF.Min(distance, this.chased.Id == target.GameObjectId ? this.chased.Best : float.MaxValue), now);
+        else if (now - this.chased.Since > ChaseGivesUpAfter && this.outOfReach.Add(target.GameObjectId))
+            Plugin.Trace(FormattableString.Invariant($"Journey: no closer to the {target.Name.TextValue} in {ChaseGivesUpAfter.TotalSeconds:0} s ({distance:0.0} y off); leaving it"));
         // While an enemy area is being cast, the way in keeps out of it: a clear spot in reach, else wait outside.
         if (this.dodger.Active)
         {
             if (this.dodger.SafeApproach(target) is not { } way)
             {
+                if (!this.waitingOutside)
+                    Plugin.Trace($"Journey: no clear way in to the {target.Name.TextValue}; waiting outside the area being cast");
+                this.waitingOutside = true;
                 if (this.nav.IsBusy)
                     this.nav.Stop();
                 return false;
             }
+            this.waitingOutside = false;
             var safe = this.nav.IsBusy ? this.nav.Waypoints : [];
             if (!(safe.Count > 0 && Vector3.Distance(safe[^1], way) <= AoeDodge.Clearance) && !this.nav.Pathfinding)
                 this.nav.MoveTo(way);
@@ -1253,7 +1355,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         var src = BeastSources.ById(this.hunt);
         if (now - this.huntStarted > HuntFor)
         {
-            this.Fail(now, $"No {src.Name} captured in {HuntFor.TotalMinutes} minutes; it is skipped for this run.");
+            this.Fail(now, $"No {src.Name} captured in {HuntFor.TotalMinutes} minutes; it is skipped for this run.", skipHunt: true);
             return;
         }
 
@@ -1270,8 +1372,15 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         // Another mob attacking comes first: weakening the prey while something else hits would get the character KO'd.
         if (this.FleeIfThreatened(now, inFate: false))
             return;
-        if (this.Attacker() is { } other && other.GameObjectId != target.GameObjectId && this.FightBack(now))
+        if (this.Attackers().FirstOrDefault(o => o.GameObjectId != target.GameObjectId) is { } other)
+        {
+            this.rotation.Set(Mode.Manual);
+            this.game.Target(other);
+            if (this.Chase(now, other))
+                this.game.EnsureAutoAttack(other);
+            this.Say($"Fighting off a {other.Name.TextValue} before going on with the {src.Name}.");
             return;
+        }
         if (target.GameObjectId != this.prey)
             this.attackTries = 0;
         this.prey = target.GameObjectId;
@@ -1338,7 +1447,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     {
         uint status = this.game.ActionStatus(action, target.GameObjectId);
         if (status != 0 && (status, action) != this.lastRefusal)
-            Plugin.Trace($"Journey: the game refuses {what} on {target.Name.TextValue} (status {status})", LogKind.Warn);
+            Plugin.Trace($"Journey: the game refuses {what} on {target.Name.TextValue} (status {status})");
         this.lastRefusal = status == 0 ? default : (status, action);
         if (status != 0)
             this.Say($"The game refuses {what} on the {target.Name.TextValue} for now (status {status}).");
@@ -1355,7 +1464,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
         bool Fits(IBattleNpc o) =>
             GameActions.IsHostile(o) && src.WildNames.Contains(o.NameId) && o.Level <= level && o.CurrentHp > 0 && o.IsTargetable
-            && (GameActions.HasNoTarget(o) || ours.Contains(o.TargetObjectId));
+            && (GameActions.HasNoTarget(o) || ours.Contains(o.TargetObjectId)) && !this.outOfReach.Contains(o.GameObjectId);
         var mobs = this.objects.OfType<IBattleNpc>().Where(Fits).ToList();
         return mobs.FirstOrDefault(o => o.GameObjectId == this.prey) ?? mobs.OrderBy(o => this.game.DistanceTo(o.Position)).FirstOrDefault();
     }
@@ -1366,7 +1475,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         int points = src.Spawns.Count * SearchPattern.Length;
         if (this.searchPoint >= points * 2)
         {
-            this.Fail(now, $"No {src.Name} found at its spawn points (the data may be wrong); it is skipped for this run.");
+            this.Fail(now, $"No {src.Name} found at its spawn points (the data may be wrong); it is skipped for this run.", skipHunt: true);
             return;
         }
         var spawn = src.Spawns[this.searchPoint / SearchPattern.Length % src.Spawns.Count];
@@ -1384,7 +1493,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
             return;
         if (t == TravelState.Failed && this.client.TerritoryType != spawn.Territory)
         {
-            this.Fail(now, this.travel.Problem ?? $"{this.ZoneName(spawn.Territory)} cannot be reached.");
+            this.Fail(now, this.travel.Problem ?? $"{this.ZoneName(spawn.Territory)} cannot be reached.", skipHunt: true);
             return;
         }
         // Arrived, or this point is off the mesh: look a while, then try the next point.
@@ -1568,18 +1677,22 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
                     this.travel.Reset();
                     return;
                 }
+                this.rotation.Release();
                 this.Say($"Heading to the FATE \"{f.Name}\" (level {f.Level}, {f.Progress}%).");
                 if (this.travel.Tick(here, f.Position, MathF.Min(f.Radius * 0.4f, FateHeight)) == TravelState.Failed)
                     this.fate = 0;
                 return;
             }
             this.travel.Reset();
+            this.headingTo = default;
             if (this.game.Mounted)
             {
                 if (this.Ready(now, 1.5))
                     this.game.UseGeneral(GameActions.Dismount);
                 return;
             }
+            if (!this.game.InCombat && this.EnsureFamiliar(now))
+                return;
             var fm = FateManager.Instance();
             if (fm != null && s.JobLevel > f.MaxLevel && fm->SyncedFateId != f.FateId && this.Ready(now, 3))
                 fm->LevelSync();
@@ -1669,7 +1782,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
             return false;
         var ours = this.objects.Where(o => o.OwnerId == me.EntityId).Select(o => o.GameObjectId).Append(me.GameObjectId).ToHashSet();
         bool Fits(IBattleNpc o) =>
-            GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o) && !this.fledFrom.Contains(o.GameObjectId)
+            GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o) && !this.fledFrom.Contains(o.GameObjectId) && !this.outOfReach.Contains(o.GameObjectId)
             && o.Level <= level && o.Level >= level - GrindLevelsBelow
             && (GameActions.HasNoTarget(o) || ours.Contains(o.TargetObjectId))
             && ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == 0
@@ -1685,6 +1798,11 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         this.grindTarget = mob.GameObjectId;
         this.Say($"No FATE to join yet: fighting a {mob.Name.TextValue} (level {mob.Level}) meanwhile.");
         if (!this.Chase(now, mob))
+        {
+            this.rotation.Release();
+            return true;
+        }
+        if (this.EnsureFamiliar(now))
             return true;
         this.rotation.Set(Mode.Manual);
         // The hotbar's Auto-attack starts the fight (the "attack" action is refused in this patch); the rotation follows.
@@ -1707,10 +1825,12 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     /// <summary>The current target when it is alive and hostile, else the nearest living enemy of FATE <paramref name="fateId"/>.</summary>
     private IGameObject? FateEnemy(IFate f)
     {
-        if (this.objects.LocalPlayer?.TargetObject is IBattleNpc t && GameActions.IsHostile(t) && !t.IsDead && t.CurrentHp > 0 && !GameActions.IsTrainingDummy(t))
+        if (this.objects.LocalPlayer?.TargetObject is IBattleNpc t && GameActions.IsHostile(t) && !t.IsDead && t.CurrentHp > 0 && !GameActions.IsTrainingDummy(t)
+            && !this.outOfReach.Contains(t.GameObjectId))
             return t;
         var alive = this.objects.OfType<IBattleNpc>()
-            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o))
+            .Where(o => GameActions.IsHostile(o) && !o.IsDead && o.CurrentHp > 0 && o.IsTargetable && !GameActions.IsTrainingDummy(o)
+                && !this.outOfReach.Contains(o.GameObjectId))
             .ToList();
         // The FATE's own enemies; failing that, any enemy inside its circle (the mobs' FATE id is not always set).
         return alive.Where(o => ((FFXIVClientStructs.FFXIV.Client.Game.Character.Character*)o.Address)->FateId == f.FateId)

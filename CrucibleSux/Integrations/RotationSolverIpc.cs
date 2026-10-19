@@ -16,6 +16,12 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
     private static readonly TimeSpan ResendAfter = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan CheckEvery = TimeSpan.FromSeconds(1);
 
+    /// <summary>A call that failed is not tried again sooner than this, so a broken RSR does not fill the log.</summary>
+    private static readonly TimeSpan RetryAfter = TimeSpan.FromSeconds(5);
+
+    /// <summary>Resends after the first in this window are counted, not each written to the log.</summary>
+    private static readonly TimeSpan ResendNoteEvery = TimeSpan.FromSeconds(30);
+
     /// <summary>RSR's <c>StateCommandType</c> (RotationSolver.Basic/Data/RSCommandType.cs); sent by value over IPC.</summary>
     public enum Mode : byte
     {
@@ -34,31 +40,39 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
     private readonly ICallGateSubscriber<bool> active = pi.GetIpcSubscriber<bool>("RotationSolverReborn.AutorotationActive");
     private DateTime sentAt;
     private DateTime nextCheck;
+    private DateTime failedUntil;
+    private string? lastFailure;
+    private DateTime resendNotedAt;
+    private int resendsUnnoted;
     private Mode? current;
-    private bool freely;
+
+    /// <summary>The target override last sent; null when unknown, so the next <see cref="Set"/> sends it.</summary>
+    private bool? freely;
+
+    /// <summary>The mode last sent to RSR, or null when it is unknown; for the combat log.</summary>
+    public Mode? Requested => this.current;
 
     /// <summary>Sets the mode; repeated calls with the same mode are not resent (see <see cref="Reassert"/>).</summary>
     public bool Set(Mode mode, bool targetFreely = false)
     {
+        var now = DateTime.UtcNow;
+        if (now < this.failedUntil)
+            return false;
         try
         {
-            if (this.freely != targetFreely)
-            {
-                (targetFreely ? this.targetFreelyOn : this.targetFreelyOff).InvokeAction();
-                this.freely = targetFreely;
-            }
             // RSR turns itself off on its own (between areas, after combat, on a class change): a fighting mode it does not
             // hold any more is sent again.
-            var now = DateTime.UtcNow;
             if (this.current == mode && mode != Mode.Off && now - this.sentAt > ResendAfter && now >= this.nextCheck)
             {
                 this.nextCheck = now + CheckEvery;
                 if (this.Active() == false)
                 {
-                    note($"Rotation Solver Reborn is off though it was asked for {mode}: asking again");
+                    this.NoteResend(now, mode);
                     this.current = null;
+                    this.freely = null;
                 }
             }
+            // The mode first: an RSR build without the override still gets switched on.
             if (this.current != mode)
             {
                 this.changeMode.InvokeAction(mode);
@@ -66,15 +80,28 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
                 this.sentAt = now;
                 note(mode == Mode.Off ? "Rotation Solver Reborn: Off" : $"Rotation Solver Reborn: {mode}{(targetFreely ? ", picking its own targets" : string.Empty)}");
             }
-            return true;
         }
         catch (Exception ex)
         {
-            log.Warning(ex, "Rotation Solver Reborn IPC call failed");
-            note($"Rotation Solver Reborn did not take the {mode} call: {ex.Message}");
+            this.Failed(now, $"the {mode} call", ex);
             this.current = null;
             return false;
         }
+        try
+        {
+            if (this.freely != targetFreely)
+            {
+                (targetFreely ? this.targetFreelyOn : this.targetFreelyOff).InvokeAction();
+                this.freely = targetFreely;
+            }
+        }
+        catch (Exception ex)
+        {
+            this.Failed(now, "the target override", ex);
+            this.freely = targetFreely;
+        }
+        this.lastFailure = null;
+        return true;
     }
 
     /// <summary>
@@ -84,12 +111,14 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
     public void ForceOff()
     {
         this.current = null;
-        this.freely = true;
+        this.freely = null;
+        this.failedUntil = default;
         this.Set(Mode.Off);
     }
 
     /// <summary>
-    /// Whether RSR's auto-rotation is on (its <c>AutorotationActive</c>, since August 2026); null when it does not answer.
+    /// Whether RSR's auto-rotation is on (its <c>AutorotationActive</c>, since August 2026); null when it does not answer
+    /// (an older RSR).
     /// </summary>
     public bool? Active()
     {
@@ -104,17 +133,44 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
     }
 
     /// <summary>
-    /// Forgets the mode last sent, so the next <see cref="Set"/> sends it again. RSR switches itself off on its own (30 s
-    /// after combat, between areas) and has no IPC to read its state back, so this is called when a fight starts and after
-    /// a zone change.
+    /// Forgets the mode and override last sent, so the next <see cref="Set"/> sends them again. RSR switches itself off on
+    /// its own (30 s after combat, between areas), so this is called when a fight starts and after a zone change.
     /// </summary>
-    public void Reassert() => this.current = null;
+    public void Reassert()
+    {
+        this.current = null;
+        this.freely = null;
+    }
 
     /// <summary>Turns the rotation off and drops the target override; safe to call when nothing was set.</summary>
     public void Release()
     {
-        if (this.current is null or Mode.Off && !this.freely)
+        if (this.current == Mode.Off && this.freely == false)
             return;
         this.Set(Mode.Off);
+    }
+
+    private void NoteResend(DateTime now, Mode mode)
+    {
+        if (now - this.resendNotedAt < ResendNoteEvery)
+        {
+            this.resendsUnnoted++;
+            return;
+        }
+        string more = this.resendsUnnoted > 0 ? $" ({this.resendsUnnoted} more times in the last {ResendNoteEvery.TotalSeconds:0} s)" : string.Empty;
+        note($"Rotation Solver Reborn is off though it was asked for {mode}: asking again{more}");
+        this.resendNotedAt = now;
+        this.resendsUnnoted = 0;
+    }
+
+    private void Failed(DateTime now, string what, Exception ex)
+    {
+        this.failedUntil = now + RetryAfter;
+        string text = $"Rotation Solver Reborn did not take {what}: {ex.Message}";
+        if (text == this.lastFailure)
+            return;
+        this.lastFailure = text;
+        log.Warning(ex, "Rotation Solver Reborn IPC call failed");
+        note(text);
     }
 }

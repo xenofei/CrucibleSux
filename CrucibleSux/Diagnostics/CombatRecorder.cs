@@ -8,6 +8,7 @@ using CrucibleSux.Automation;
 using CrucibleSux.Core;
 using CrucibleSux.Game;
 using CrucibleSux.Integrations;
+using Dalamud.Game;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Game.Chat;
@@ -41,6 +42,10 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private static readonly TimeSpan AutoDutyEvery = TimeSpan.FromSeconds(1);
     private static readonly TimeSpan MoveEvery = TimeSpan.FromSeconds(1);
 
+    /// <summary>Not a yalm moved in this long while something runs: the "why is it standing there" snapshot.</summary>
+    private static readonly TimeSpan StillFor = TimeSpan.FromSeconds(4);
+    private static readonly TimeSpan StillAgainEvery = TimeSpan.FromSeconds(15);
+
     /// <summary>A hit that follows a cast's end within this long is put down to it.</summary>
     private static readonly TimeSpan HitWindow = TimeSpan.FromSeconds(1.5);
 
@@ -58,6 +63,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private readonly AutoDutyIpc autoDuty;
     private readonly NavmeshIpc nav;
     private readonly RotationSolverIpc rotation;
+    private readonly Func<string?> standingStill;
     private readonly Func<bool> automationRunning;
     private readonly Func<string, IReadOnlyList<string>> header;
     private readonly CastAreas areas;
@@ -93,6 +99,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private bool? rsrActive;
     private bool swinging;
     private Fight? fight;
+    private DateTime nextStill;
 
     public CombatRecorder(
         Configuration config,
@@ -110,6 +117,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         NavmeshIpc nav,
         RotationSolverIpc rotation,
         Func<bool> automationRunning,
+        Func<string?> standingStill,
         Func<string, IReadOnlyList<string>> header)
     {
         this.config = config;
@@ -124,6 +132,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         this.autoDuty = autoDuty;
         this.nav = nav;
         this.rotation = rotation;
+        this.standingStill = standingStill;
         this.automationRunning = automationRunning;
         this.header = header;
         this.areas = new CastAreas(dataManager, objects);
@@ -216,6 +225,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         this.rsrActive = null;
         this.swinging = false;
         this.fight = null;
+        this.nextStill = now + StillFor;
         this.nextNav = this.nextAutoDuty = now;
         log.Add(now, LogKind.Move, $"Start at {P(me.Position)}");
         return log;
@@ -225,6 +235,11 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     {
         if (this.Current is not { } log)
             return;
+        if (this.fight is { } open)
+        {
+            log.Add(now, LogKind.Combat, open.Summary(now, this.client.ClientLanguage) + " (log ended in combat)", important: open.Suspicious(now));
+            this.fight = null;
+        }
         if (why is not null)
             log.Add(now, LogKind.Info, why);
         log.End(now);
@@ -271,7 +286,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
                 this.fight = new Fight(now);
             else if (this.fight is { } ended)
             {
-                log.Add(now, LogKind.Combat, ended.Summary(now), important: true);
+                log.Add(now, LogKind.Combat, ended.Summary(now, this.client.ClientLanguage), important: ended.Suspicious(now));
                 this.fight = null;
             }
         }
@@ -282,7 +297,8 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         if (swinging != this.swinging)
         {
             this.swinging = swinging;
-            log.Add(now, LogKind.Combat, swinging ? "Auto-attack on" : "Auto-attack off");
+            if (combat || !swinging)
+                log.Add(now, LogKind.Combat, swinging ? $"Auto-attack on ({this.Clean(this.targets.Target?.Name.TextValue ?? "no target")})" : "Auto-attack off");
         }
 
         var ride = (this.condition[ConditionFlag.Mounted], this.condition[ConditionFlag.InFlight] || this.condition[ConditionFlag.Diving]);
@@ -313,7 +329,14 @@ public sealed unsafe partial class CombatRecorder : IDisposable
             if (rsr != this.rsrActive)
             {
                 this.rsrActive = rsr;
-                log.Add(now, LogKind.Info, rsr switch { true => "Rotation Solver Reborn is on", false => "Rotation Solver Reborn is off", _ => "Rotation Solver Reborn does not answer" });
+                var asked = this.rotation.Requested;
+                string request = asked is null ? string.Empty : $" (last asked for {asked})";
+                log.Add(now, LogKind.Info, rsr switch
+                {
+                    true => $"Rotation Solver Reborn is on{request}",
+                    false => $"Rotation Solver Reborn is off{request}",
+                    _ => "Rotation Solver Reborn does not answer whether it is on (too old for that call?)",
+                }, important: rsr == false && asked is not null and not RotationSolverIpc.Mode.Off);
             }
             bool? running = this.autoDuty.IsRunning();
             if (running != this.dutyRunning)
@@ -532,8 +555,14 @@ public sealed unsafe partial class CombatRecorder : IDisposable
             }
         }
 
+        if (now - this.lastMoveAt >= StillFor && now >= this.nextStill && this.standingStill() is { } why)
+        {
+            this.nextStill = now + StillAgainEvery;
+            log.Add(now, LogKind.Move, Inv($"Standing still for {(now - this.lastMoveAt).TotalSeconds:0}s at {P(me.Position)}: {this.Clean(why)}"));
+        }
         if (Vector3.Distance(me.Position, this.lastMovePos) >= 1f && now - this.lastMoveAt >= MoveEvery)
         {
+            this.nextStill = now + StillFor;
             float d = Vector2.Distance(Flat(this.lastMovePos), myPos);
             log.Add(now, LogKind.Move, Inv($"At {P(me.Position)}, {d:0.0} y in {(now - this.lastMoveAt).TotalSeconds:0.0}s, facing {Deg(me.Rotation)}"));
             this.lastMovePos = me.Position;
@@ -621,7 +650,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private string Clean(string text)
     {
         foreach (string part in this.nameParts)
-            text = text.Replace(part, "<you>", StringComparison.OrdinalIgnoreCase);
+            text = Regex.Replace(text, $@"\b{Regex.Escape(part)}\b", "<you>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
         return text;
     }
 
@@ -645,14 +674,17 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         private int yourHits;
         private int familiarHits;
         private int hitsTaken;
+        private int unread;
 
         public void Count(XivChatType type, XivChatRelationKind source, XivChatRelationKind target, string text)
         {
-            if (type == XivChatType.Action && UsedRegex().Match(text) is { Success: true } m)
+            if (type == XivChatType.Action && source is XivChatRelationKind.LocalPlayer or XivChatRelationKind.PetOrCompanion)
             {
-                var into = source switch { XivChatRelationKind.LocalPlayer => this.yours, XivChatRelationKind.PetOrCompanion => this.familiar, _ => null };
-                if (into is not null)
+                var into = source == XivChatRelationKind.LocalPlayer ? this.yours : this.familiar;
+                if (UsedRegex().Match(text) is { Success: true } m)
                     into[m.Groups[1].Value] = into.GetValueOrDefault(m.Groups[1].Value) + 1;
+                else if (source == XivChatRelationKind.LocalPlayer && !text.StartsWith("You ", StringComparison.Ordinal))
+                    this.unread++;
             }
             else if (type == XivChatType.Damage)
             {
@@ -665,8 +697,20 @@ public sealed unsafe partial class CombatRecorder : IDisposable
             }
         }
 
-        public string Summary(DateTime end) =>
-            Inv($"Fight over after {(end - start).TotalSeconds:0}s: you used {List(this.yours)}; your familiar used {List(this.familiar)}; you landed {this.yourHits} hits, your familiar {this.familiarHits}; you took {this.hitsTaken}");
+        /// <summary>
+        /// No skill of the character's seen in a fight of 10 s or more while it took hits: the "uses no skills" report. A
+        /// capture weakens its prey with auto-attacks only, and its fights are short.
+        /// </summary>
+        public bool Suspicious(DateTime end) => end - start >= TimeSpan.FromSeconds(10) && this.yours.Count == 0 && this.unread == 0 && this.hitsTaken > 0;
+
+        public string Summary(DateTime end, ClientLanguage language)
+        {
+            string yours = this.unread > 0 && this.yours.Count == 0
+                ? Inv($"{this.unread} actions (names are read from English chat only; client is {language})")
+                : List(this.yours);
+            string familiar = this.familiar.Count == 0 && this.familiarHits == 0 ? "nothing seen in chat" : List(this.familiar);
+            return Inv($"Fight over after {(end - start).TotalSeconds:0}s: you used {yours}; your familiar used {familiar}; you landed {this.yourHits} hits, your familiar {this.familiarHits}; you took {this.hitsTaken}");
+        }
 
         private static string List(Dictionary<string, int> used) =>
             used.Count == 0 ? "no skills" : string.Join(", ", used.OrderByDescending(u => u.Value).Select(u => u.Value == 1 ? u.Key : $"{u.Key} x{u.Value}"));

@@ -51,6 +51,14 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
     private bool unstickTeleport;
 
     private static readonly TimeSpan StuckAfter = TimeSpan.FromSeconds(4);
+
+    /// <summary>A trip that still does not move after this many teleports out, or refused paths, gives up.</summary>
+    private const int UnsticksAllowed = 2;
+    private const int RefusalsAllowed = 5;
+
+    private DateTime lastTick;
+    private int unsticks;
+    private int refusals;
     private Vector3? resolved;
     private (uint Territory, Vector3 Point)? target;
 
@@ -67,6 +75,8 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         this.flying = this.groundOnly = this.unstickTeleport = false;
         this.progress = null;
         this.stuck = 0;
+        this.unsticks = 0;
+        this.refusals = 0;
         this.Problem = null;
     }
 
@@ -102,13 +112,25 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         {
             if (nav.IsBusy)
                 nav.Stop();
+            // Map coordinates are flat: a flight "arrives" high above the spot. Land there instead of hovering.
+            if (!heightKnown && game.InFlight)
+            {
+                if (now >= this.nextTry)
+                {
+                    this.nextTry = now + RetryEvery;
+                    game.UseGeneral(GameActions.Dismount);
+                }
+                return TravelState.Moving;
+            }
             return TravelState.Arrived;
         }
         // Not getting anywhere (wedged under an overhang, against a rock): land first, then teleport out.
+        bool paused = now - this.lastTick > TimeSpan.FromSeconds(1);
+        this.lastTick = now;
         if (nav.IsReady && !nav.Pathfinding)
         {
             var here = game.Me.Position;
-            if (this.progress is not { } p || Vector3.Distance(p.Pos, here) >= 1f)
+            if (paused || this.progress is not { } p || Vector3.Distance(p.Pos, here) >= 1f)
             {
                 this.progress = (now, here);
             }
@@ -123,12 +145,20 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
                     this.groundOnly = true;
                     Plugin.Trace("Travel: not moving; landing and going on the ground");
                 }
+                else if (this.unsticks >= UnsticksAllowed)
+                {
+                    return this.Fail($"Still stuck after teleporting out {this.unsticks} times: the destination may be unreachable from here.");
+                }
                 else
                 {
                     this.unstickTeleport = true;
                     Plugin.Trace("Travel: still not moving; teleporting out");
                 }
             }
+        }
+        else
+        {
+            this.progress = null;
         }
         if (this.unstickTeleport)
         {
@@ -137,6 +167,7 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             {
                 this.unstickTeleport = this.groundOnly = false;
                 this.stuck = 0;
+                this.unsticks++;
                 this.progress = null;
             }
             return state;
@@ -177,8 +208,18 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             return TravelState.Moving;
         }
         this.flying = (fly && game.Mounted) || game.InFlight;
-        if (!nav.MoveTo(d, fly: this.flying))
-            Plugin.Log.Debug($"vnavmesh refused a path to {d}");
+        if (nav.MoveTo(d, fly: this.flying))
+        {
+            this.refusals = 0;
+        }
+        else if (++this.refusals == 1)
+        {
+            Plugin.Trace($"Travel: vnavmesh refused a path to {d}{(this.flying ? " (flying)" : string.Empty)}");
+        }
+        else if (this.refusals >= RefusalsAllowed)
+        {
+            return this.Fail($"vnavmesh refused {this.refusals} paths in a row to ({d.X:0}, {d.Z:0}): it may be off the navmesh.");
+        }
         return TravelState.Moving;
     }
 

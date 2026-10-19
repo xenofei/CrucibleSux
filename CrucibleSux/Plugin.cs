@@ -30,7 +30,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
 
     /// <summary>The combat log being recorded, for <see cref="Trace"/>; null when no recorder exists.</summary>
-    private static Action<LogKind, string>? traceSink;
+    private static Action<LogKind, string, bool>? traceSink;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
@@ -83,8 +83,9 @@ public sealed class Plugin : IDalamudPlugin
             new Dialogue(game), nav, rotation, this.runner, this.config, PluginInterface, ClientState, FateTable,
             ObjectTable, DataManager, ChatGui, NotificationManager);
         this.recorder = new CombatRecorder(this.config, data, PluginInterface, ClientState, Condition, ObjectTable, TargetManager, ChatGui, AddonLifecycle,
-            DataManager, Log, this.autoDuty, nav, rotation, () => this.runner.Current is not null || this.journey.Running, this.LogHeader);
-        traceSink = (kind, text) => this.recorder.Note(kind, text);
+            DataManager, Log, this.autoDuty, nav, rotation, () => this.runner.Current is not null || this.journey.Running,
+            () => this.journey.StillReport(), this.LogHeader);
+        traceSink = (kind, text, important) => this.recorder.Note(kind, text, important);
         this.picker = new TargetPicker(this.config, data.TargetPriorities, ClientState, Condition, ObjectTable, TargetManager, this.recorder);
         this.aggro = new AggroController(this.config, data, ClientState, Condition, ObjectTable, TargetManager, game, this.recorder);
         this.bossMod = new BossModGate(PluginInterface, CommandManager, ChatGui, Log, this.config, this.Save);
@@ -114,7 +115,6 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
-        traceSink = null;
         Framework.Update -= this.OnUpdate;
         PluginInterface.UiBuilder.OpenConfigUi -= this.mainWindow.OpenSettings;
         PluginInterface.UiBuilder.OpenMainUi -= this.mainWindow.Toggle;
@@ -126,6 +126,7 @@ public sealed class Plugin : IDalamudPlugin
         this.runner.Dispose();
         this.bossMod.Dispose();
         this.recorder.Dispose();
+        traceSink = null;
         this.bestiary.Dispose();
     }
 
@@ -137,6 +138,7 @@ public sealed class Plugin : IDalamudPlugin
         this.bossMod.Update(() => this.runner.Current is null && !this.journey.Running);
         if (this.bossMod.Asking is not null)
             this.bossModPrompt.IsOpen = true;
+        this.recorder.Update();
         this.runner.Update();
         this.journey.Update();
         this.unlockPrompt.Update(PlayerState.IsLoaded ? PlayerState.ContentId : 0,
@@ -144,7 +146,6 @@ public sealed class Plugin : IDalamudPlugin
             && !Condition[ConditionFlag.InCombat] && !Condition[ConditionFlag.BoundByDuty]);
         this.picker.Update();
         this.aggro.Update();
-        this.recorder.Update();
     }
 
     private void OnDraw()
@@ -174,11 +175,20 @@ public sealed class Plugin : IDalamudPlugin
         lines.Add($"BossMod in use: {inUse}");
         if (this.autoDuty.LastOverrides is { } pushed)
             lines.Add($"Last AutoDuty settings pushed: {string.Join(", ", pushed.Select(p => $"{p.Key}={p.Value}"))}");
-        var plugins = this.session.Dependencies.SelectMany(r => r.Candidates)
-            .Select(c => c.Installed is { IsLoaded: true } p ? $"{p.InternalName} {p.Version}" : null)
-            .OfType<string>()
-            .Distinct();
-        lines.Add($"Plugins loaded: {string.Join(", ", plugins)}");
+        if (this.journey.Running)
+        {
+            lines.Add($"Journey: {this.journey.Activity?.Kind.ToString() ?? "starting"}{(this.journey.Activity is { } a ? $" ({a.Why})" : string.Empty)}; now: {this.journey.Status}");
+        }
+        // Every loaded plugin, not only the ones Crucible SUX uses: another automation plugin can fight over the same inputs.
+        var plugins = PluginInterface.InstalledPlugins.Where(p => p.IsLoaded).Select(p => $"{p.InternalName} {p.Version}").Order();
+        lines.Add($"Dalamud {typeof(IDalamudPluginInterface).Assembly.GetName().Version}; plugins loaded: {string.Join(", ", plugins)}");
+        var trouble = new List<string>();
+        if (BackgroundFpsLimited())
+            trouble.Add("the game limits its frame rate when not focused (the character can turn back and forth)");
+        if (Preflight.WrathLoaded(this.session.Dependencies) && DependencyCatalog.RotationEngine(this.session.Dependencies)?.InternalName == "RotationSolver")
+            trouble.Add("Wrath Combo is loaded beside Rotation Solver Reborn (RSR lists it as breaking its rotations)");
+        if (trouble.Count > 0)
+            lines.Add($"Known trouble: {string.Join("; ", trouble)}");
         if (this.session.Snapshot is { } s)
         {
             lines.Add($"Beastmaster level {s.JobLevel}, item level {s.ItemLevel?.ToString() ?? "?"}, beasts befriended {s.UnlockedBeasts?.Count.ToString() ?? "?"}, " +
@@ -264,13 +274,13 @@ public sealed class Plugin : IDalamudPlugin
     /// A decision of the journey or travel: into the plugin log, and into the combat log being recorded, so a report shows
     /// why the character did what it did.
     /// </summary>
-    internal static void Trace(string text, LogKind kind = LogKind.Info)
+    internal static void Trace(string text, LogKind kind = LogKind.Info, bool important = false)
     {
         if (kind == LogKind.Warn)
             Log.Warning(text);
         else
             Log.Information(text);
-        traceSink?.Invoke(kind, text);
+        traceSink?.Invoke(kind, text, important);
     }
 
     /// <summary>

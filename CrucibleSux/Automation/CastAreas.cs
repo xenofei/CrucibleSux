@@ -17,6 +17,12 @@ public sealed unsafe class CastAreas(IDataManager data, IObjectTable objects)
     private readonly ExcelSheet<Lumina.Excel.Sheets.Action> actions = data.GetExcelSheet<Lumina.Excel.Sheets.Action>();
     private readonly Dictionary<uint, (string Name, AoeShape Shape, byte CastType)> cache = [];
 
+    /// <summary>
+    /// Where each caster's current cast aimed when first seen: a circle on a target stays where the target stood, rather
+    /// than following it for the whole cast.
+    /// </summary>
+    private readonly Dictionary<ulong, (uint Action, float Progress, Vector2? Aim)> aims = [];
+
     /// <summary>The action's name and its area as the Action row describes it, before it is placed.</summary>
     public (string Name, AoeShape Shape) Info(uint id)
     {
@@ -35,9 +41,22 @@ public sealed unsafe class CastAreas(IDataManager data, IObjectTable objects)
             return null;
         // The cast's own rotation reads 0 in this patch; the caster faces its frontal attacks, so its facing is used.
         Vector3 at = ci->TargetLocation;
-        Vector2? aim = at != Vector3.Zero ? Flat(at)
-            : objects.SearchById(npc.CastTargetObjectId) is { } target && target.GameObjectId != npc.GameObjectId ? Flat(target.Position)
-            : null;
+        Vector2? aim;
+        if (at != Vector3.Zero)
+            aim = Flat(at);
+        else if (this.aims.TryGetValue(npc.GameObjectId, out var seen) && seen.Action == npc.CastActionId && seen.Progress <= npc.CurrentCastTime)
+        {
+            // The same cast while its progress only grows; a new cast starts again from 0.
+            aim = seen.Aim;
+            this.aims[npc.GameObjectId] = seen with { Progress = npc.CurrentCastTime };
+        }
+        else
+        {
+            aim = objects.SearchById(npc.CastTargetObjectId) is { } target && target.GameObjectId != npc.GameObjectId ? Flat(target.Position) : null;
+            if (this.aims.Count > 64)
+                this.aims.Clear();
+            this.aims[npc.GameObjectId] = (npc.CastActionId, npc.CurrentCastTime, aim);
+        }
         return AoeThreat.Of(shape, castType, Flat(npc.Position), npc.Rotation, npc.HitboxRadius, aim);
     }
 

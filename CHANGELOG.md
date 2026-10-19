@@ -2,13 +2,62 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **The familiar is called before fights:** outside quest steps the journey never called a familiar, so after a KO, a zone change or a mount the character could fight alone. Before grinding a mob or joining a FATE, out of combat with no familiar out, it now calls the one on the first Battlehorn. It gives up after 3 tries.
+- **Dodging:**
+  - A dodge is no longer lost to a path still being computed (a chase, a flight): the move is asked for again until the path ends at the safe spot.
+  - When no spot near the target can be walked to, the nearest clear spot anywhere is tried.
+  - While fleeing, the dodge no longer prefers spots near the attacker.
+  - A circle aimed at the character stays where the character stood when the cast began, instead of following it for the whole cast.
+- **Fights:**
+  - A second enemy attacking during a capture is now fought, in Manual, so the rotation does not kill the prey. Before, the character auto-attacked the prey with the rotation off while the other mob hit it.
+  - Auto-attack is toggled at most once every 1.5 s, so a second press can no longer turn it back off. The striking-dummy step now starts auto-attack too.
+  - The rotation stays off while walking to a mob or a FATE, so "pick its own targets" cannot pull extra mobs on the way.
+  - A quest battle now walks to its enemies.
+  - Being attacked during a quest step, or while a window waits for you, is now fought first.
+- **Rotation Solver Reborn:**
+  - Turning it off after a fight was skipped when the last mode was Manual.
+  - The mode is now sent before the target override, so an RSR without the override still switches on.
+  - A failing call is retried every 5 s rather than every tick.
+- **Stalls:**
+  - Travel's stuck check counted time spent computing a path, or paused in a fight, as standing still. That cancelled flights and teleported out after ordinary fights.
+  - A trip still stuck after 2 teleports out, or after 5 refused paths, now gives up, where before it looped until the 15-minute watchdog.
+  - An enemy the chase gets no closer to in 15 s (on a ledge, in water) is left for another, while grinding, capturing and in FATEs.
+  - A FATE the character had reached could be dropped as "unreachable" 2 minutes later.
+  - The second beast of a Tempered Release or Borrow quest step could not be called while the striking dummy's fight lingered. Battlehorns now work in combat, and the dummy's fight is walked out of when they do not.
+  - A flight that arrives above a beast's spawn point lands instead of hovering.
+- **Giving up:**
+  - "3 problems in a row" now resets whenever progress is made.
+  - A KO or a stall during a hunt no longer skips that beast for the run; only a failed hunt does.
+
 ### Added
 
 - **Clearer combat logs for reports:**
   - **The journey's decisions** now go into the combat log as well as the plugin log: what it is doing ("Fighting off Anole", "Stepping out of Frost Breath", "Finishing the fight", "Waiting for a FATE"), each flight, stuck turn, skipped zone or FATE, and every refused action. A status is logged once per wording (numbers aside), and not again within 5 s.
   - **A summary after each fight:** how long it lasted, which skills the character and its familiar used and how often, the hits each landed, and the hits taken. A fight where no skills were used now shows that at a glance, and in the short summary too.
   - **Auto-attack on and off** is logged.
-  - **A Rotation Solver Reborn call that fails** is logged.
+  - **A Rotation Solver Reborn call that fails** is logged, once per different error.
+  - **RSR's on/off line** says what it was last asked for. "Off" while asked to fight reaches the short summary.
+  - **A snapshot when the character stands still** for 4 s while the journey runs, repeated every 15 s. It records:
+    - the status, and anything that blocks a step (busy, in an event)
+    - vnavmesh's state
+    - RSR on or off, and its mode
+    - auto-attack, the target and its distance
+    - whether an enemy area is being cast
+  - **The header** now includes:
+    - the journey's activity and status
+    - Dalamud's version and every loaded plugin
+    - known trouble: the background frame-rate limit, and Wrath Combo beside RSR
+  - **More events logged:** refused paths, a chase that gives up, no clear way in or out of an area, and Auto-attack refusals.
+- **Log fixes:**
+  - The journey's first lines reached no log, because the recorder opened its log after the journey's first decision.
+  - A status that came back within 5 s was never logged again.
+  - The stop line was lost on unload.
+  - A log that ends mid-fight now keeps that fight's tally.
+  - A fight summary reaches the short summary only when it looks wrong (10 s or more, hits taken, no skill seen), so short capture fights do not push out everything else.
+  - Clients in other languages say their skills could not be read, rather than "no skills".
+  - The character's name is now replaced only as a whole word ("Ash" no longer turns "Smash Axe" into "Sm<you> Axe").
 
 ## [0.3.23] - 2026-10-18
 

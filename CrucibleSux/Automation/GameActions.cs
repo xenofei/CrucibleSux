@@ -139,9 +139,25 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
     public void EnsureAutoAttack(IGameObject target)
     {
         this.Target(target);
-        if (!this.IsAutoAttacking)
+        // A toggle: sent again before the swing flag catches up, it would turn the swings back off.
+        var now = DateTime.UtcNow;
+        if (this.IsAutoAttacking || now < this.nextAutoAttack)
+            return;
+        this.nextAutoAttack = now + TimeSpan.FromSeconds(1.5);
+        var am = ActionManager.Instance();
+        uint status = am == null ? uint.MaxValue : am->GetActionStatus(ActionType.GeneralAction, AutoAttackGeneral);
+        if (status == 0)
             this.UseGeneral(AutoAttackGeneral);
+        if (status != this.autoAttackRefusal)
+        {
+            this.autoAttackRefusal = status;
+            if (status != 0)
+                Plugin.Trace($"Journey: the game refuses Auto-attack on {target.Name.TextValue} (status {status})");
+        }
     }
+
+    private DateTime nextAutoAttack;
+    private uint autoAttackRefusal;
 
     public bool UseGeneral(uint id)
     {
@@ -200,6 +216,21 @@ public sealed unsafe class GameActions(IObjectTable objects, ICondition conditio
                 return i;
         }
         return -1;
+    }
+
+    /// <summary>The beast on the first Battlehorn that holds one, or null.</summary>
+    public uint? FirstHornBeast()
+    {
+        var am = ActionManager.Instance();
+        if (am == null)
+            return null;
+        var pets = am->BeastmasterPets;
+        for (int i = 0; i < pets.Length && i < Battlehorns.Length; i++)
+        {
+            if (pets[i] != 0)
+                return pets[i];
+        }
+        return null;
     }
 
     /// <summary>The player's summoned familiar, if any, recognised by its BNpcName.</summary>
