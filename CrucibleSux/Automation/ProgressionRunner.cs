@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using CrucibleSux.Core;
 using CrucibleSux.Game;
 using CrucibleSux.Integrations;
@@ -22,7 +23,7 @@ namespace CrucibleSux.Automation;
 /// Reborn for fighting and the session runner for boards. Progress is always read back from the game (quest sequence, beasts
 /// owned, EXP, inventory), never assumed from what was sent. None of it has run in game yet.
 /// </summary>
-public sealed unsafe class ProgressionRunner : IDisposable
+public sealed unsafe partial class ProgressionRunner : IDisposable
 {
     public const uint BeastmasterWeapon = 47470;
     public const uint StarterCoffer = 52649;
@@ -53,6 +54,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     /// <summary>How far back a flight runs: mobs give up a chase once the character is far enough from where they started.</summary>
     private const float FleeBack = 40f;
     private const int Crumbs = 30;
+    private static readonly TimeSpan SaidAgainAfter = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan FleeStuckAfter = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan CrumbEvery = TimeSpan.FromSeconds(2);
 
@@ -143,6 +145,8 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private DateTime? fleeingSince;
     private Vector3? fleeTo;
     private bool wasDead;
+    private string? saidShape;
+    private readonly Dictionary<string, DateTime> said = [];
 
     /// <summary>Got away from a fight: rests until HP is full before carrying on (the owner's rule).</summary>
     private bool recovering;
@@ -286,7 +290,9 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.lastProgress = DateTime.UtcNow;
         this.LastResult = null;
         this.Status = "Starting.";
-        Plugin.Log.Information($"Journey started: {this.Options}");
+        this.saidShape = null;
+        this.said.Clear();
+        Plugin.Trace($"Journey started: {this.Options}");
         this.chat.Print("[Crucible SUX] Beastmaster journey started. \"/sux stop\" stops it.");
         return true;
     }
@@ -306,7 +312,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.LastResult = reason;
         this.Waiting = null;
         this.Activity = null;
-        Plugin.Log.Information($"Journey stopped: {reason}");
+        Plugin.Trace($"Journey stopped: {reason}");
         this.chat.Print($"[Crucible SUX] Journey {(done ? "finished" : "stopped")}: {reason}");
         this.notifications.AddNotification(new Notification
         {
@@ -407,7 +413,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.key = key;
             this.Activity = activity;
             this.lastProgress = now;
-            Plugin.Log.Information($"Journey: {activity.Kind}: {activity.Why}");
+            Plugin.Trace($"Journey: {activity.Kind}: {activity.Why}");
         }
 
         switch (activity.Kind)
@@ -573,11 +579,36 @@ public sealed unsafe class ProgressionRunner : IDisposable
         this.buyTries = 0;
     }
 
-    private void Say(string status) => this.Status = status;
+    private void Say(string status)
+    {
+        this.Trace(status);
+        this.Status = status;
+    }
+
+    /// <summary>
+    /// Puts a new status into the logs: once per wording, numbers aside ("HP 43%" and "HP 52%" are one), and not again
+    /// within <see cref="SaidAgainAfter"/>, so two states that alternate every frame do not flood the log.
+    /// </summary>
+    private void Trace(string status)
+    {
+        string shape = Digits().Replace(status, "#");
+        if (shape == this.saidShape)
+            return;
+        this.saidShape = shape;
+        var now = DateTime.UtcNow;
+        if (this.said.TryGetValue(shape, out var at) && now - at < SaidAgainAfter)
+            return;
+        this.said[shape] = now;
+        Plugin.Trace($"Journey: {status}");
+    }
+
+    [GeneratedRegex(@"\d+")]
+    private static partial Regex Digits();
 
     private void Wait(DateTime now, string what)
     {
         this.Waiting = what;
+        this.Trace(what);
         this.Status = what;
         this.lastProgress = now;
         if (this.notifiedWait)
@@ -590,7 +621,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     private void Fail(DateTime now, string reason)
     {
         this.failures++;
-        Plugin.Log.Warning($"Journey problem {this.failures}/{MaxFailures}: {reason}");
+        Plugin.Trace($"Journey problem {this.failures}/{MaxFailures}: {reason}", LogKind.Warn);
         if (this.hunt != 0)
             this.skipped.Add(this.hunt);
         if (this.failures >= MaxFailures)
@@ -674,7 +705,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 break;
             default:
                 if (!this.game.UpdateBeastmasterGearset())
-                    Plugin.Log.Warning("Journey: no Beastmaster gear set to save the recommended gear into.");
+                    Plugin.Trace("Journey: no Beastmaster gear set to save the recommended gear into.", LogKind.Warn);
                 this.gearSetup = 0;
                 return true;
         }
@@ -1017,7 +1048,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.rotation.Release();
             this.travel.Reset();
             string who = string.Join(", ", attackers.Select(a => $"{a.Name.TextValue} (level {a.Level})"));
-            Plugin.Log.Information($"Journey: fleeing from {(who.Length > 0 ? who : "an attacker")}");
+            Plugin.Trace($"Journey: fleeing from {(who.Length > 0 ? who : "an attacker")}");
         }
         // Still in the fight on arrival: keep going, away from them.
         if (this.fleeTo is { } to && Vector3.Distance(to, here) < 5 && !this.nav.IsBusy)
@@ -1032,7 +1063,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 this.fleeTo = this.Away(here, attackers, turn);
                 if (this.nav.IsBusy)
                     this.nav.Stop();
-                Plugin.Log.Information($"Journey: the flight is not moving; turning {turn:0} degrees");
+                Plugin.Trace($"Journey: the flight is not moving; turning {turn:0} degrees");
             }
             this.fleeCheck = (now, here);
         }
@@ -1069,7 +1100,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (me.CurrentHp >= me.MaxHp)
         {
             this.recovering = false;
-            Plugin.Log.Information("Journey: back to full HP after the flight");
+            Plugin.Trace("Journey: back to full HP after the flight");
             return false;
         }
         if (this.nav.IsBusy)
@@ -1101,7 +1132,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         {
             if (this.fleeingSince is not null)
             {
-                Plugin.Log.Information("Journey: got away");
+                Plugin.Trace("Journey: got away");
                 this.recovering = true;
                 this.fleeingSince = null;
                 this.fleeTo = null;
@@ -1252,7 +1283,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         bool inReach = this.Chase(now, target);
         if ((move, inReach) != this.captureStep)
         {
-            Plugin.Log.Information($"Journey: capture of a {src.Name} (level {target.Level}, HP {hp}%): {move}, {(inReach ? "in reach" : $"{this.game.DistanceTo(target.Position):0.0} y away")}");
+            Plugin.Trace($"Journey: capture of a {src.Name} (level {target.Level}, HP {hp}%): {move}, {(inReach ? "in reach" : $"{this.game.DistanceTo(target.Position):0.0} y away")}");
             this.captureStep = (move, inReach);
         }
         if (!inReach)
@@ -1286,7 +1317,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
                     sent = $"Capture to open the fight: {this.game.UseAction(GameActions.Capture, target.GameObjectId)}";
                 else
                     break;
-                Plugin.Log.Information($"Journey: capture try {this.attackTries} on the {target.Name.TextValue}, sent {sent}");
+                Plugin.Trace($"Journey: capture try {this.attackTries} on the {target.Name.TextValue}, sent {sent}");
                 break;
             case CaptureMove.Capture:
                 this.rotation.Release();
@@ -1307,7 +1338,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
     {
         uint status = this.game.ActionStatus(action, target.GameObjectId);
         if (status != 0 && (status, action) != this.lastRefusal)
-            Plugin.Log.Warning($"Journey: the game refuses {what} on {target.Name.TextValue} (status {status})");
+            Plugin.Trace($"Journey: the game refuses {what} on {target.Name.TextValue} (status {status})", LogKind.Warn);
         this.lastRefusal = status == 0 ? default : (status, action);
         if (status != 0)
             this.Say($"The game refuses {what} on the {target.Name.TextValue} for now (status {status}).");
@@ -1503,7 +1534,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
             this.Say($"Going to {this.ZoneName(this.zone)} for FATEs.");
             if (this.travel.Tick(this.zone, Vector3.Zero, float.MaxValue) == TravelState.Failed)
             {
-                Plugin.Log.Information($"Journey: skipping {this.ZoneName(this.zone)}: {this.travel.Problem}");
+                Plugin.Trace($"Journey: skipping {this.ZoneName(this.zone)}: {this.travel.Problem}");
                 this.unreachable.Add(this.zone);
                 this.travel.Reset();
                 var reachable = zones.Where(z => !this.unreachable.Contains(z)).ToList();
@@ -1531,7 +1562,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
                     this.headingTo = (f.FateId, now);
                 else if (now - this.headingTo.Since > FateReachFor)
                 {
-                    Plugin.Log.Information($"Journey: the FATE {f.Name} could not be reached in {FateReachFor.TotalMinutes:0} minutes; leaving it");
+                    Plugin.Trace($"Journey: the FATE {f.Name} could not be reached in {FateReachFor.TotalMinutes:0} minutes; leaving it");
                     this.stalled.Add(f.FateId);
                     this.fate = 0;
                     this.travel.Reset();
@@ -1558,7 +1589,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
                 this.fateWatch = (f.FateId, f.Progress, now);
             else if (now - this.fateWatch.At > FateStallsAfter)
             {
-                Plugin.Log.Information($"Journey: leaving the FATE {f.Name}: no progress for {FateStallsAfter.TotalMinutes:0} minutes");
+                Plugin.Trace($"Journey: leaving the FATE {f.Name}: no progress for {FateStallsAfter.TotalMinutes:0} minutes");
                 this.stalled.Add(f.FateId);
                 this.fate = 0;
                 return;
@@ -1650,7 +1681,7 @@ public sealed unsafe class ProgressionRunner : IDisposable
         if (mob is null)
             return false;
         if (mob.GameObjectId != this.grindTarget)
-            Plugin.Log.Information($"Journey: no FATE to join; fighting a {mob.Name.TextValue} (level {mob.Level}) meanwhile");
+            Plugin.Trace($"Journey: no FATE to join; fighting a {mob.Name.TextValue} (level {mob.Level}) meanwhile");
         this.grindTarget = mob.GameObjectId;
         this.Say($"No FATE to join yet: fighting a {mob.Name.TextValue} (level {mob.Level}) meanwhile.");
         if (!this.Chase(now, mob))

@@ -71,6 +71,7 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
         catch (Exception ex)
         {
             log.Warning(ex, "Rotation Solver Reborn IPC call failed");
+            note($"Rotation Solver Reborn did not take the {mode} call: {ex.Message}");
             this.current = null;
             return false;
         }

@@ -74,7 +74,7 @@ public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIp
         }
         if (this.spot is not { } go)
             return this.Clear();
-        Plugin.Log.Information($"Journey: stepping out of {name}");
+        Plugin.Trace($"Journey: stepping out of {name}");
         if (nav.IsBusy)
             nav.Stop();
         nav.MoveTo(go);

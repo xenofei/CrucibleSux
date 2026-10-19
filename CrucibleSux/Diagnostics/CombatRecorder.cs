@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Text.RegularExpressions;
 using CrucibleSux.Automation;
 using CrucibleSux.Core;
 using CrucibleSux.Game;
@@ -15,6 +16,7 @@ using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.Text;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
+using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel;
 using TerritoryType = Lumina.Excel.Sheets.TerritoryType;
@@ -28,7 +30,7 @@ namespace CrucibleSux.Diagnostics;
 /// <see cref="KeepInMemory"/> stay in memory and every finished log is saved under the plugin's config folder. The
 /// character's name never reaches a log: it is replaced with "&lt;you&gt;".
 /// </summary>
-public sealed unsafe class CombatRecorder : IDisposable
+public sealed unsafe partial class CombatRecorder : IDisposable
 {
     public const string OutsideTitle = "Outside the boards";
     private const int KeepInMemory = 10;
@@ -89,6 +91,8 @@ public sealed unsafe class CombatRecorder : IDisposable
     private Vector3? navEnd;
     private bool? dutyRunning;
     private bool? rsrActive;
+    private bool swinging;
+    private Fight? fight;
 
     public CombatRecorder(
         Configuration config,
@@ -210,6 +214,8 @@ public sealed unsafe class CombatRecorder : IDisposable
         this.navEnd = null;
         this.dutyRunning = null;
         this.rsrActive = null;
+        this.swinging = false;
+        this.fight = null;
         this.nextNav = this.nextAutoDuty = now;
         log.Add(now, LogKind.Move, $"Start at {P(me.Position)}");
         return log;
@@ -261,6 +267,22 @@ public sealed unsafe class CombatRecorder : IDisposable
         {
             this.inCombat = combat;
             log.Add(now, LogKind.Combat, combat ? "In combat" : "Out of combat");
+            if (combat)
+                this.fight = new Fight(now);
+            else if (this.fight is { } ended)
+            {
+                log.Add(now, LogKind.Combat, ended.Summary(now), important: true);
+                this.fight = null;
+            }
+        }
+
+        // Swinging or not: a fight with no damage dealt shows here whether auto-attack was ever on.
+        var ui = UIState.Instance();
+        bool swinging = ui != null && ui->WeaponState.AutoAttackState.IsAutoAttacking;
+        if (swinging != this.swinging)
+        {
+            this.swinging = swinging;
+            log.Add(now, LogKind.Combat, swinging ? "Auto-attack on" : "Auto-attack off");
         }
 
         var ride = (this.condition[ConditionFlag.Mounted], this.condition[ConditionFlag.InFlight] || this.condition[ConditionFlag.Diving]);
@@ -591,6 +613,7 @@ public sealed unsafe class CombatRecorder : IDisposable
         bool enemyAction = type == XivChatType.Action && message.SourceKind is XivChatRelationKind.EngagedEnemy or XivChatRelationKind.UnengagedEnemy;
         // The character's and its familiar's own actions, to see which skills the rotation plugin really uses.
         bool ownAction = type == XivChatType.Action && message.SourceKind is XivChatRelationKind.LocalPlayer or XivChatRelationKind.PetOrCompanion;
+        this.fight?.Count(type, message.SourceKind, message.TargetKind, message.Message.TextValue);
         if (system || onYou || enemyAction || ownAction)
             this.Note(LogKind.Chat, $"[{type}] {message.Message.TextValue}");
     }
@@ -613,6 +636,45 @@ public sealed unsafe class CombatRecorder : IDisposable
     private static string Inside(float margin) => margin > 0 ? Inv($"{margin:0.0} y inside") : Inv($"{-margin:0.0} y outside");
 
     private static string Inv(FormattableString s) => FormattableString.Invariant(s);
+
+    /// <summary>One fight's tally, from the battle chat: which skills the character and its familiar used, and the hits.</summary>
+    private sealed partial class Fight(DateTime start)
+    {
+        private readonly Dictionary<string, int> yours = [];
+        private readonly Dictionary<string, int> familiar = [];
+        private int yourHits;
+        private int familiarHits;
+        private int hitsTaken;
+
+        public void Count(XivChatType type, XivChatRelationKind source, XivChatRelationKind target, string text)
+        {
+            if (type == XivChatType.Action && UsedRegex().Match(text) is { Success: true } m)
+            {
+                var into = source switch { XivChatRelationKind.LocalPlayer => this.yours, XivChatRelationKind.PetOrCompanion => this.familiar, _ => null };
+                if (into is not null)
+                    into[m.Groups[1].Value] = into.GetValueOrDefault(m.Groups[1].Value) + 1;
+            }
+            else if (type == XivChatType.Damage)
+            {
+                if (source == XivChatRelationKind.LocalPlayer && target != XivChatRelationKind.LocalPlayer)
+                    this.yourHits++;
+                else if (source == XivChatRelationKind.PetOrCompanion)
+                    this.familiarHits++;
+                if (target == XivChatRelationKind.LocalPlayer)
+                    this.hitsTaken++;
+            }
+        }
+
+        public string Summary(DateTime end) =>
+            Inv($"Fight over after {(end - start).TotalSeconds:0}s: you used {List(this.yours)}; your familiar used {List(this.familiar)}; you landed {this.yourHits} hits, your familiar {this.familiarHits}; you took {this.hitsTaken}");
+
+        private static string List(Dictionary<string, int> used) =>
+            used.Count == 0 ? "no skills" : string.Join(", ", used.OrderByDescending(u => u.Value).Select(u => u.Value == 1 ? u.Key : $"{u.Key} x{u.Value}"));
+
+        // "You use Smash Axe." / "The Cu Sith uses Gale Axe." / "You cast ..."; mounting and the like do not match.
+        [GeneratedRegex(@"\b(?:uses?|casts?) (.+?)\.?$")]
+        private static partial Regex UsedRegex();
+    }
 
     private sealed class Cast
     {

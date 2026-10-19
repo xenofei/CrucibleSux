@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Clearer combat logs for reports:**
+  - **The journey's decisions** now go into the combat log as well as the plugin log: what it is doing ("Fighting off Anole", "Stepping out of Frost Breath", "Finishing the fight", "Waiting for a FATE"), each flight, stuck turn, skipped zone or FATE, and every refused action. A status is logged once per wording (numbers aside), and not again within 5 s.
+  - **A summary after each fight:** how long it lasted, which skills the character and its familiar used and how often, the hits each landed, and the hits taken. A fight where no skills were used now shows that at a glance, and in the short summary too.
+  - **Auto-attack on and off** is logged.
+  - **A Rotation Solver Reborn call that fails** is logged.
+
 ## [0.3.23] - 2026-10-18
 
 ### Fixed

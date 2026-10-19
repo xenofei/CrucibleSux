@@ -28,6 +28,9 @@ public sealed class Plugin : IDalamudPlugin
 
     [PluginService] internal static IDalamudPluginInterface PluginInterface { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
+
+    /// <summary>The combat log being recorded, for <see cref="Trace"/>; null when no recorder exists.</summary>
+    private static Action<LogKind, string>? traceSink;
     [PluginService] internal static IDataManager DataManager { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
@@ -81,6 +84,7 @@ public sealed class Plugin : IDalamudPlugin
             ObjectTable, DataManager, ChatGui, NotificationManager);
         this.recorder = new CombatRecorder(this.config, data, PluginInterface, ClientState, Condition, ObjectTable, TargetManager, ChatGui, AddonLifecycle,
             DataManager, Log, this.autoDuty, nav, rotation, () => this.runner.Current is not null || this.journey.Running, this.LogHeader);
+        traceSink = (kind, text) => this.recorder.Note(kind, text);
         this.picker = new TargetPicker(this.config, data.TargetPriorities, ClientState, Condition, ObjectTable, TargetManager, this.recorder);
         this.aggro = new AggroController(this.config, data, ClientState, Condition, ObjectTable, TargetManager, game, this.recorder);
         this.bossMod = new BossModGate(PluginInterface, CommandManager, ChatGui, Log, this.config, this.Save);
@@ -110,6 +114,7 @@ public sealed class Plugin : IDalamudPlugin
 
     public void Dispose()
     {
+        traceSink = null;
         Framework.Update -= this.OnUpdate;
         PluginInterface.UiBuilder.OpenConfigUi -= this.mainWindow.OpenSettings;
         PluginInterface.UiBuilder.OpenMainUi -= this.mainWindow.Toggle;
@@ -253,6 +258,19 @@ public sealed class Plugin : IDalamudPlugin
         ChatGui.PrintError("[Crucible SUX] The session cannot start:");
         foreach (var check in checks.Where(c => c.Status == CheckStatus.Fail))
             ChatGui.PrintError($"[Crucible SUX] {check.Label}: {check.Detail}");
+    }
+
+    /// <summary>
+    /// A decision of the journey or travel: into the plugin log, and into the combat log being recorded, so a report shows
+    /// why the character did what it did.
+    /// </summary>
+    internal static void Trace(string text, LogKind kind = LogKind.Info)
+    {
+        if (kind == LogKind.Warn)
+            Log.Warning(text);
+        else
+            Log.Information(text);
+        traceSink?.Invoke(kind, text);
     }
 
     /// <summary>

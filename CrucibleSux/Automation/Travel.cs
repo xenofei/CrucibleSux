@@ -121,12 +121,12 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
                 if (this.stuck == 1 && game.Mounted && !this.groundOnly)
                 {
                     this.groundOnly = true;
-                    Plugin.Log.Information("Travel: not moving; landing and going on the ground");
+                    Plugin.Trace("Travel: not moving; landing and going on the ground");
                 }
                 else
                 {
                     this.unstickTeleport = true;
-                    Plugin.Log.Information("Travel: still not moving; teleporting out");
+                    Plugin.Trace("Travel: still not moving; teleporting out");
                 }
             }
         }
@@ -152,7 +152,7 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         if (this.flying && !this.groundOnly)
         {
             this.groundOnly = true;
-            Plugin.Log.Information($"Travel: the flight stopped {distance:0} y short; going on the ground");
+            Plugin.Trace($"Travel: the flight stopped {distance:0} y short; going on the ground");
         }
         this.flying = false;
         this.nextTry = now + RetryEvery;
