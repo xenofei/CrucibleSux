@@ -78,13 +78,14 @@ public sealed class Plugin : IDalamudPlugin
             ClientState, Condition, ObjectTable, GameGui, PlayerState, ChatGui, NotificationManager);
         var game = new GameActions(ObjectTable, Condition, GameGui, PlayerState);
         var nav = new NavmeshIpc(PluginInterface, Log);
-        var rotation = new RotationSolverIpc(PluginInterface, Log, text => this.recorder!.Note(LogKind.Info, text));
+        var rotation = new RotationSolverIpc(PluginInterface, Log, (text, warn) => this.recorder!.Note(warn ? LogKind.Warn : LogKind.Info, text));
         this.journey = new ProgressionRunner(new ProgressionReader(PlayerState, DataManager), game, new Travel(game, nav, ClientState, DataManager),
             new Dialogue(game), nav, rotation, this.runner, this.config, PluginInterface, ClientState, FateTable,
             ObjectTable, DataManager, ChatGui, NotificationManager);
         this.recorder = new CombatRecorder(this.config, data, PluginInterface, ClientState, Condition, ObjectTable, TargetManager, ChatGui, AddonLifecycle,
             DataManager, Log, this.autoDuty, nav, rotation, () => this.runner.Current is not null || this.journey.Running,
-            () => this.journey.StillReport(), this.LogHeader);
+            () => this.journey.StillReport(), () => this.journey.Running && this.journey.Activity?.Kind == ActivityKind.Capture,
+            this.LogHeader, LogDetails);
         traceSink = (kind, text, important) => this.recorder.Note(kind, text, important);
         this.picker = new TargetPicker(this.config, data.TargetPriorities, ClientState, Condition, ObjectTable, TargetManager, this.recorder);
         this.aggro = new AggroController(this.config, data, ClientState, Condition, ObjectTable, TargetManager, game, this.recorder);
@@ -179,8 +180,12 @@ public sealed class Plugin : IDalamudPlugin
         {
             lines.Add($"Journey: {this.journey.Activity?.Kind.ToString() ?? "starting"}{(this.journey.Activity is { } a ? $" ({a.Why})" : string.Empty)}; now: {this.journey.Status}");
         }
-        // Every loaded plugin, not only the ones Crucible SUX uses: another automation plugin can fight over the same inputs.
-        var plugins = PluginInterface.InstalledPlugins.Where(p => p.IsLoaded).Select(p => $"{p.InternalName} {p.Version}").Order();
+        // The plugins Crucible SUX works with; every other loaded one goes into the full log only (LogDetails), to keep the
+        // short summary within a Discord message.
+        var plugins = this.session.Dependencies.SelectMany(r => r.Candidates)
+            .Select(c => c.Installed is { IsLoaded: true } p ? $"{p.InternalName} {p.Version}" : null)
+            .OfType<string>()
+            .Distinct();
         lines.Add($"Dalamud {typeof(IDalamudPluginInterface).Assembly.GetName().Version}; plugins loaded: {string.Join(", ", plugins)}");
         var trouble = new List<string>();
         if (BackgroundFpsLimited())
@@ -195,6 +200,13 @@ public sealed class Plugin : IDalamudPlugin
                       $"best known ranks {string.Join(", ", s.KnownRanks.Take(5))}, boards cleared {string.Join(", ", s.ClearedBoards.Order())}");
         }
         return lines;
+    }
+
+    /// <summary>The first lines of a log's body, in the full log only: every loaded plugin, since another automation plugin can fight over the same inputs.</summary>
+    private static IReadOnlyList<string> LogDetails()
+    {
+        var plugins = PluginInterface.InstalledPlugins.Where(p => p.IsLoaded).Select(p => $"{p.InternalName} {p.Version}").Order();
+        return [$"Every loaded plugin: {string.Join(", ", plugins)}"];
     }
 
     private void OnCommand(string command, string args)

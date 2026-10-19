@@ -15,7 +15,7 @@
   - Auto-attack is toggled at most once every 1.5 s, so a second press can no longer turn it back off. The striking-dummy step now starts auto-attack too.
   - The rotation stays off while walking to a mob or a FATE, so "pick its own targets" cannot pull extra mobs on the way.
   - A quest battle now walks to its enemies.
-  - Being attacked during a quest step, or while a window waits for you, is now fought first.
+  - Being attacked during a quest step, or while a window waits for you, is now fought first. A quest battle is never fled.
 - **Rotation Solver Reborn:**
   - Turning it off after a fight was skipped when the last mode was Manual.
   - The mode is now sent before the target override, so an RSR without the override still switches on.
@@ -37,9 +37,9 @@
   - **The journey's decisions** now go into the combat log as well as the plugin log: what it is doing ("Fighting off Anole", "Stepping out of Frost Breath", "Finishing the fight", "Waiting for a FATE"), each flight, stuck turn, skipped zone or FATE, and every refused action. A status is logged once per wording (numbers aside), and not again within 5 s.
   - **A summary after each fight:** how long it lasted, which skills the character and its familiar used and how often, the hits each landed, and the hits taken. A fight where no skills were used now shows that at a glance, and in the short summary too.
   - **Auto-attack on and off** is logged.
-  - **A Rotation Solver Reborn call that fails** is logged, once per different error.
+  - **A Rotation Solver Reborn call that fails** is logged as a warning, once per different error.
   - **RSR's on/off line** says what it was last asked for. "Off" while asked to fight reaches the short summary.
-  - **A snapshot when the character stands still** for 4 s while the journey runs, repeated every 15 s. It records:
+  - **A snapshot when the character stands still** for 4 s while the journey runs. It is repeated every 15 s if the picture changed, else every 60 s. It records:
     - the status, and anything that blocks a step (busy, in an event)
     - vnavmesh's state
     - RSR on or off, and its mode
@@ -47,15 +47,17 @@
     - whether an enemy area is being cast
   - **The header** now includes:
     - the journey's activity and status
-    - Dalamud's version and every loaded plugin
+    - Dalamud's version
     - known trouble: the background frame-rate limit, and Wrath Combo beside RSR
+  - **The full log** now starts with every loaded plugin (the short summary lists only the ones Crucible SUX uses).
   - **More events logged:** refused paths, a chase that gives up, no clear way in or out of an area, and Auto-attack refusals.
 - **Log fixes:**
   - The journey's first lines reached no log, because the recorder opened its log after the journey's first decision.
   - A status that came back within 5 s was never logged again.
   - The stop line was lost on unload.
   - A log that ends mid-fight now keeps that fight's tally.
-  - A fight summary reaches the short summary only when it looks wrong (10 s or more, hits taken, no skill seen), so short capture fights do not push out everything else.
+  - A fight summary reaches the short summary only when it looks wrong (10 s or more, hits taken, no skill seen, not a capture), so short capture fights do not push out everything else.
+  - The short summary keeps the first 5 important lines and then the newest that fit, so the cause of a stop at the end is no longer the first thing cut.
   - Clients in other languages say their skills could not be read, rather than "no skills".
   - The character's name is now replaced only as a whole word ("Ash" no longer turns "Smash Axe" into "Sm<you> Axe").
 

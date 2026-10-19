@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -29,6 +30,7 @@ public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIp
     private readonly List<AoeThreat> threats = [];
     private Vector3? spot;
     private string? noSpotFor;
+    private DateTime nextHead;
 
     /// <summary>The cast being stepped out of, or null.</summary>
     public string? Dodging { get; private set; }
@@ -51,7 +53,10 @@ public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIp
         }
 
         if (!AoeDodge.InDanger(this.threats, Flat(me.Position)))
+        {
+            this.noSpotFor = null;
             return this.Clear();
+        }
         this.Dodging = name;
         // Keep heading for the spot already chosen while it stays clear.
         if (this.spot is { } chosen && !AoeDodge.InDanger(this.threats, Flat(chosen)))
@@ -75,7 +80,7 @@ public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIp
             return this.Clear();
         }
         this.noSpotFor = null;
-        Plugin.Trace($"Journey: stepping out of {name}");
+        this.nextHead = default;
         this.Head(go);
         return true;
     }
@@ -89,8 +94,10 @@ public sealed class AoeDodger(IObjectTable objects, IDataManager data, NavmeshIp
         var path = nav.IsBusy ? nav.Waypoints : [];
         if (path.Count > 0 && Vector3.Distance(path[^1], spot) <= AoeDodge.Clearance)
             return;
-        if (nav.Pathfinding)
+        var now = DateTime.UtcNow;
+        if (nav.Pathfinding || now < this.nextHead)
             return;
+        this.nextHead = now + TimeSpan.FromSeconds(1);
         if (nav.IsBusy)
             nav.Stop();
         nav.MoveTo(spot);

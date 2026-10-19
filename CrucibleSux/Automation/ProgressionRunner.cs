@@ -148,6 +148,9 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     private bool wasDead;
     private string? saidShape;
 
+    /// <summary>The progress fingerprint without the zone: what clears the "problems in a row" count.</summary>
+    private string? doneFingerprint;
+
     /// <summary>Enemies a chase got no closer to for <see cref="ChaseGivesUpAfter"/> (a ledge, water): not picked again.</summary>
     private readonly HashSet<ulong> outOfReach = [];
     private (ulong Id, float Best, DateTime Since) chased;
@@ -447,6 +450,11 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         {
             this.fingerprint = fp;
             this.lastProgress = now;
+        }
+        string done = JourneyRules.Progress(fateKey, state, this.reader.Experience(), 0);
+        if (done != this.doneFingerprint)
+        {
+            this.doneFingerprint = done;
             this.failures = 0;
         }
         if (now - this.lastProgress > StuckAfter)
@@ -760,7 +768,9 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
     private void DoQuest(DateTime now, Activity a, ProgressionState s)
     {
         var q = QuestScripts.ById(a.Quest);
-        if (this.FightBack(now))
+        // An attacker comes before setting up the job or the beast; a quest battle is the fight itself, and is never fled.
+        bool battle = a.Step is { } current && q.At(current.Sequence).Any(x => x.Kind == StepKind.Battle);
+        if (!battle && this.FightBack(now))
             return;
         if (!q.AnyJob && !this.EnsureJob(now))
             return;
@@ -912,15 +922,24 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
                 this.familiarTries = 0;
             return false;
         }
-        if (this.familiarTries >= 3 || now < this.nextFamiliarTry || this.game.FirstHornBeast() is not { } beast)
+        if (this.familiarTries >= 3 || this.game.FirstHornBeast() is not { } beast)
             return false;
-        if (this.Summon(now, beast))
-            return false;
+        this.Say($"Calling the {BeastSources.ById(beast).Name} before the fight.");
+        if (this.game.Mounted)
+        {
+            if (this.Ready(now, 1.5))
+                this.game.UseGeneral(GameActions.Dismount);
+            return true;
+        }
+        if (now < this.nextFamiliarTry)
+            return true;
         if (this.familiarTries == 0)
             Plugin.Trace($"Journey: no familiar out; calling the {BeastSources.ById(beast).Name}");
+        int slot = this.game.HornOf(beast);
+        if (slot >= 0 && this.game.CanUse(GameActions.Battlehorns[slot]))
+            this.game.UseAction(GameActions.Battlehorns[slot]);
         this.familiarTries++;
         this.nextFamiliarTry = now + TimeSpan.FromSeconds(3);
-        this.Say($"Calling the {BeastSources.ById(beast).Name} before the fight.");
         return true;
     }
 
@@ -1292,6 +1311,7 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
         float distance = this.game.DistanceTo(target.Position) - target.HitboxRadius;
         if (distance <= MeleeRange)
         {
+            this.chased = (target.GameObjectId, distance, now);
             if (this.nav.IsBusy)
                 this.nav.Stop();
             if (!this.game.Mounted)
@@ -1677,7 +1697,8 @@ public sealed unsafe partial class ProgressionRunner : IDisposable
                     this.travel.Reset();
                     return;
                 }
-                this.rotation.Release();
+                if (distance > f.Radius || offLevel)
+                    this.rotation.Release();
                 this.Say($"Heading to the FATE \"{f.Name}\" (level {f.Level}, {f.Progress}%).");
                 if (this.travel.Tick(here, f.Position, MathF.Min(f.Radius * 0.4f, FateHeight)) == TravelState.Failed)
                     this.fate = 0;

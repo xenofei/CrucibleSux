@@ -43,6 +43,9 @@ public sealed class CombatLog
     /// <summary>Discord's message limit without Nitro.</summary>
     public const int SummaryChars = 1_900;
 
+    /// <summary>How many of the earliest important lines the summary keeps before it fills up from the newest.</summary>
+    private const int SummaryFirstLines = 5;
+
     private readonly List<LogLine> lines = [];
     private readonly Dictionary<LogKind, int> counts = [];
 
@@ -90,18 +93,34 @@ public sealed class CombatLog
           .Append(CultureInfo.InvariantCulture, $"{this.Count(LogKind.Death)} KOs, {this.Count(LogKind.Hp)} HP changes, ")
           .Append(CultureInfo.InvariantCulture, $"{this.Count(LogKind.Target)} target changes, {this.Count(LogKind.Warn)} warnings\n");
 
-        var important = this.lines.Where(l => l.Important).ToList();
-        int shown = 0;
-        foreach (var line in important)
+        // The first few important lines (how it started), then the newest that fit (how it ended: the stop, the last
+        // problems), with a marker for what is left out between them.
+        var important = this.lines.Where(l => l.Important).Select(l => Format(l) + "\n").ToList();
+        int budget = maxChars - 60 - sb.Length;
+        var head = new List<string>();
+        foreach (string text in important.Take(SummaryFirstLines))
         {
-            string text = Format(line) + "\n";
-            if (sb.Length + text.Length > maxChars - 60)
+            if (text.Length > budget)
                 break;
-            sb.Append(text);
-            shown++;
+            head.Add(text);
+            budget -= text.Length;
         }
-        if (shown < important.Count)
-            sb.Append(CultureInfo.InvariantCulture, $"... {important.Count - shown} more; copy the full log for everything.\n");
+        var tail = new List<string>();
+        for (int i = important.Count - 1; i >= head.Count; i--)
+        {
+            if (important[i].Length > budget)
+                break;
+            tail.Add(important[i]);
+            budget -= important[i].Length;
+        }
+        tail.Reverse();
+        foreach (string text in head)
+            sb.Append(text);
+        int left = important.Count - head.Count - tail.Count;
+        if (left > 0)
+            sb.Append(CultureInfo.InvariantCulture, $"... {left} more; copy the full log for everything.\n");
+        foreach (string text in tail)
+            sb.Append(text);
         return sb.ToString();
     }
 

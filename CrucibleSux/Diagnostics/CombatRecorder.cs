@@ -46,6 +46,13 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private static readonly TimeSpan StillFor = TimeSpan.FromSeconds(4);
     private static readonly TimeSpan StillAgainEvery = TimeSpan.FromSeconds(15);
 
+    /// <summary>The same picture is written again only this often.</summary>
+    private static readonly TimeSpan StillSameEvery = TimeSpan.FromSeconds(60);
+    private DateTime lastStillAt;
+
+    [GeneratedRegex(@"\d+")]
+    private static partial Regex DigitsRegex();
+
     /// <summary>A hit that follows a cast's end within this long is put down to it.</summary>
     private static readonly TimeSpan HitWindow = TimeSpan.FromSeconds(1.5);
 
@@ -66,6 +73,8 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private readonly Func<string?> standingStill;
     private readonly Func<bool> automationRunning;
     private readonly Func<string, IReadOnlyList<string>> header;
+    private readonly Func<IReadOnlyList<string>> details;
+    private readonly Func<bool> capturing;
     private readonly CastAreas areas;
     private readonly ExcelSheet<TerritoryType> territories;
     private readonly IReadOnlyDictionary<uint, EnemyAbility> intel;
@@ -100,6 +109,8 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private bool swinging;
     private Fight? fight;
     private DateTime nextStill;
+    private string? stillShape;
+    private bool rsrOffNoted;
 
     public CombatRecorder(
         Configuration config,
@@ -118,7 +129,9 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         RotationSolverIpc rotation,
         Func<bool> automationRunning,
         Func<string?> standingStill,
-        Func<string, IReadOnlyList<string>> header)
+        Func<bool> capturing,
+        Func<string, IReadOnlyList<string>> header,
+        Func<IReadOnlyList<string>> details)
     {
         this.config = config;
         this.pi = pi;
@@ -135,6 +148,8 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         this.standingStill = standingStill;
         this.automationRunning = automationRunning;
         this.header = header;
+        this.details = details;
+        this.capturing = capturing;
         this.areas = new CastAreas(dataManager, objects);
         this.territories = dataManager.GetExcelSheet<TerritoryType>();
         this.intel = data.Battles.Values.SelectMany(b => b).SelectMany(b => b.Enemies).SelectMany(e => e.Abilities)
@@ -226,8 +241,11 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         this.swinging = false;
         this.fight = null;
         this.nextStill = now + StillFor;
+        this.stillShape = null;
         this.nextNav = this.nextAutoDuty = now;
         log.Add(now, LogKind.Move, $"Start at {P(me.Position)}");
+        foreach (string line in this.details())
+            log.Add(now, LogKind.Info, this.Clean(line));
         return log;
     }
 
@@ -283,7 +301,10 @@ public sealed unsafe partial class CombatRecorder : IDisposable
             this.inCombat = combat;
             log.Add(now, LogKind.Combat, combat ? "In combat" : "Out of combat");
             if (combat)
-                this.fight = new Fight(now);
+            {
+                this.fight = new Fight(now, this.capturing());
+                this.rsrOffNoted = false;
+            }
             else if (this.fight is { } ended)
             {
                 log.Add(now, LogKind.Combat, ended.Summary(now, this.client.ClientLanguage), important: ended.Suspicious(now));
@@ -294,11 +315,10 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         // Swinging or not: a fight with no damage dealt shows here whether auto-attack was ever on.
         var ui = UIState.Instance();
         bool swinging = ui != null && ui->WeaponState.AutoAttackState.IsAutoAttacking;
-        if (swinging != this.swinging)
+        if (swinging != this.swinging && (combat || !swinging))
         {
             this.swinging = swinging;
-            if (combat || !swinging)
-                log.Add(now, LogKind.Combat, swinging ? $"Auto-attack on ({this.Clean(this.targets.Target?.Name.TextValue ?? "no target")})" : "Auto-attack off");
+            log.Add(now, LogKind.Combat, swinging ? $"Auto-attack on ({this.Clean(this.targets.Target?.Name.TextValue ?? "no target")})" : "Auto-attack off");
         }
 
         var ride = (this.condition[ConditionFlag.Mounted], this.condition[ConditionFlag.InFlight] || this.condition[ConditionFlag.Diving]);
@@ -336,7 +356,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
                     true => $"Rotation Solver Reborn is on{request}",
                     false => $"Rotation Solver Reborn is off{request}",
                     _ => "Rotation Solver Reborn does not answer whether it is on (too old for that call?)",
-                }, important: rsr == false && asked is not null and not RotationSolverIpc.Mode.Off);
+                }, important: this.ImportantRsrOff(rsr, asked));
             }
             bool? running = this.autoDuty.IsRunning();
             if (running != this.dutyRunning)
@@ -345,6 +365,15 @@ public sealed unsafe partial class CombatRecorder : IDisposable
                 log.Add(now, LogKind.Info, running switch { true => "AutoDuty running", false => "AutoDuty stopped", _ => "AutoDuty does not answer" });
             }
         }
+    }
+
+    /// <summary>RSR off while asked to fight, in a fight: important once per fight, so a flapping RSR does not fill the summary.</summary>
+    private bool ImportantRsrOff(bool? rsr, RotationSolverIpc.Mode? asked)
+    {
+        if (rsr != false || asked is null or RotationSolverIpc.Mode.Off || !this.inCombat || this.rsrOffNoted)
+            return false;
+        this.rsrOffNoted = true;
+        return true;
     }
 
     private void SampleCasts(DateTime now, CombatLog log, IBattleChara me, Vector2 myPos)
@@ -557,12 +586,19 @@ public sealed unsafe partial class CombatRecorder : IDisposable
 
         if (now - this.lastMoveAt >= StillFor && now >= this.nextStill && this.standingStill() is { } why)
         {
+            string shape = DigitsRegex().Replace(why, "#");
+            if (shape != this.stillShape || now - this.lastStillAt >= StillSameEvery)
+            {
+                this.stillShape = shape;
+                this.lastStillAt = now;
+                log.Add(now, LogKind.Move, Inv($"Standing still for {(now - this.lastMoveAt).TotalSeconds:0}s at {P(me.Position)}: {this.Clean(why)}"));
+            }
             this.nextStill = now + StillAgainEvery;
-            log.Add(now, LogKind.Move, Inv($"Standing still for {(now - this.lastMoveAt).TotalSeconds:0}s at {P(me.Position)}: {this.Clean(why)}"));
         }
         if (Vector3.Distance(me.Position, this.lastMovePos) >= 1f && now - this.lastMoveAt >= MoveEvery)
         {
             this.nextStill = now + StillFor;
+            this.stillShape = null;
             float d = Vector2.Distance(Flat(this.lastMovePos), myPos);
             log.Add(now, LogKind.Move, Inv($"At {P(me.Position)}, {d:0.0} y in {(now - this.lastMoveAt).TotalSeconds:0.0}s, facing {Deg(me.Rotation)}"));
             this.lastMovePos = me.Position;
@@ -649,8 +685,15 @@ public sealed unsafe partial class CombatRecorder : IDisposable
 
     private string Clean(string text)
     {
-        foreach (string part in this.nameParts)
-            text = Regex.Replace(text, $@"\b{Regex.Escape(part)}\b", "<you>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        for (int i = 0; i < this.nameParts.Length; i++)
+        {
+            string part = this.nameParts[i];
+            // The full name (first) as a plain substring: a cross-world name reads "First LastWorld". Its parts only where
+            // they are not inside a longer word ("Ash" must not turn "Smash Axe" into "Sm<you> Axe").
+            text = i == 0 && part.Contains(' ')
+                ? text.Replace(part, "<you>", StringComparison.OrdinalIgnoreCase)
+                : Regex.Replace(text, $@"(?<!\p{{L}}){Regex.Escape(part)}(?!\p{{Ll}})", "<you>", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        }
         return text;
     }
 
@@ -667,7 +710,8 @@ public sealed unsafe partial class CombatRecorder : IDisposable
     private static string Inv(FormattableString s) => FormattableString.Invariant(s);
 
     /// <summary>One fight's tally, from the battle chat: which skills the character and its familiar used, and the hits.</summary>
-    private sealed partial class Fight(DateTime start)
+    /// <param name="capture">A capture was under way when the fight began: it weakens the prey with auto-attacks only, by design.</param>
+    private sealed partial class Fight(DateTime start, bool capture)
     {
         private readonly Dictionary<string, int> yours = [];
         private readonly Dictionary<string, int> familiar = [];
@@ -675,6 +719,7 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         private int familiarHits;
         private int hitsTaken;
         private int unread;
+        private int familiarUnread;
 
         public void Count(XivChatType type, XivChatRelationKind source, XivChatRelationKind target, string text)
         {
@@ -685,6 +730,8 @@ public sealed unsafe partial class CombatRecorder : IDisposable
                     into[m.Groups[1].Value] = into.GetValueOrDefault(m.Groups[1].Value) + 1;
                 else if (source == XivChatRelationKind.LocalPlayer && !text.StartsWith("You ", StringComparison.Ordinal))
                     this.unread++;
+                else if (source == XivChatRelationKind.PetOrCompanion && !text.StartsWith("The ", StringComparison.Ordinal))
+                    this.familiarUnread++;
             }
             else if (type == XivChatType.Damage)
             {
@@ -701,15 +748,19 @@ public sealed unsafe partial class CombatRecorder : IDisposable
         /// No skill of the character's seen in a fight of 10 s or more while it took hits: the "uses no skills" report. A
         /// capture weakens its prey with auto-attacks only, and its fights are short.
         /// </summary>
-        public bool Suspicious(DateTime end) => end - start >= TimeSpan.FromSeconds(10) && this.yours.Count == 0 && this.unread == 0 && this.hitsTaken > 0;
+        public bool Suspicious(DateTime end) =>
+            !capture && end - start >= TimeSpan.FromSeconds(10) && this.yours.Count == 0 && this.unread == 0 && this.hitsTaken > 0;
 
         public string Summary(DateTime end, ClientLanguage language)
         {
             string yours = this.unread > 0 && this.yours.Count == 0
                 ? Inv($"{this.unread} actions (names are read from English chat only; client is {language})")
                 : List(this.yours);
-            string familiar = this.familiar.Count == 0 && this.familiarHits == 0 ? "nothing seen in chat" : List(this.familiar);
-            return Inv($"Fight over after {(end - start).TotalSeconds:0}s: you used {yours}; your familiar used {familiar}; you landed {this.yourHits} hits, your familiar {this.familiarHits}; you took {this.hitsTaken}");
+            string familiar = this.familiarUnread > 0 && this.familiar.Count == 0
+                ? Inv($"{this.familiarUnread} actions (names not read in {language})")
+                : this.familiar.Count == 0 && this.familiarHits == 0 ? "nothing seen in chat" : List(this.familiar);
+            string what = capture ? " (a capture: auto-attacks only, by design)" : string.Empty;
+            return Inv($"Fight over after {(end - start).TotalSeconds:0}s{what}: you used {yours}; your familiar used {familiar}; you landed {this.yourHits} hits, your familiar {this.familiarHits}; you took {this.hitsTaken}");
         }
 
         private static string List(Dictionary<string, int> used) =>

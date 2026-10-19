@@ -197,6 +197,9 @@ public class CombatLogTests
         Assert.Contains("Settings: team of 3", summary);
         Assert.Contains("500 enemy casts, 500 ended with you inside", summary);
         Assert.Contains("#0 ended with you", summary);
+        Assert.Contains("#499 ended with you", summary);
+        Assert.True(summary.IndexOf("more; copy the full log", StringComparison.Ordinal) < summary.IndexOf("#499", StringComparison.Ordinal),
+            "the marker sits between the first lines and the newest");
         Assert.DoesNotContain("casts Scorching Smite", summary);
         Assert.Contains("more; copy the full log", summary);
         Assert.Contains("10m 00s", summary);

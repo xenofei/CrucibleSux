@@ -9,8 +9,8 @@ namespace CrucibleSux.Integrations;
 /// Rotation Solver Reborn's IPC (RotationSolver/IPC/IPCProvider.cs, commit 3d86903): switches its auto-rotation on and
 /// off around fights the progression runner starts. Its own Beastmaster rotation does the fighting.
 /// </summary>
-/// <param name="note">Writes a line into the combat log: each mode sent, so a log shows what RSR was asked to do.</param>
-public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log, Action<string> note)
+/// <param name="note">Writes a line into the combat log (true: a warning): each mode sent, so a log shows what RSR was asked to do.</param>
+public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log, Action<string, bool> note)
 {
     /// <summary>How long RSR may report itself off after being asked to fight before the mode is sent again.</summary>
     private static readonly TimeSpan ResendAfter = TimeSpan.FromSeconds(2);
@@ -49,15 +49,17 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
     /// <summary>The target override last sent; null when unknown, so the next <see cref="Set"/> sends it.</summary>
     private bool? freely;
 
-    /// <summary>The mode last sent to RSR, or null when it is unknown; for the combat log.</summary>
-    public Mode? Requested => this.current;
+    /// <summary>The mode last asked for, whether or not RSR still holds it; for the combat log.</summary>
+    public Mode? Requested { get; private set; }
 
     /// <summary>Sets the mode; repeated calls with the same mode are not resent (see <see cref="Reassert"/>).</summary>
     public bool Set(Mode mode, bool targetFreely = false)
     {
         var now = DateTime.UtcNow;
+        this.Requested = mode;
         if (now < this.failedUntil)
             return false;
+        bool failed = false;
         try
         {
             // RSR turns itself off on its own (between areas, after combat, on a class change): a fighting mode it does not
@@ -78,12 +80,13 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
                 this.changeMode.InvokeAction(mode);
                 this.current = mode;
                 this.sentAt = now;
-                note(mode == Mode.Off ? "Rotation Solver Reborn: Off" : $"Rotation Solver Reborn: {mode}{(targetFreely ? ", picking its own targets" : string.Empty)}");
+                note(mode == Mode.Off ? "Rotation Solver Reborn: Off" : $"Rotation Solver Reborn: {mode}{(targetFreely ? ", picking its own targets" : string.Empty)}", false);
             }
         }
         catch (Exception ex)
         {
             this.Failed(now, $"the {mode} call", ex);
+            this.failedUntil = now + RetryAfter;
             this.current = null;
             return false;
         }
@@ -97,10 +100,13 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
         }
         catch (Exception ex)
         {
+            // An RSR without the override: noted once, and the mode calls go on.
             this.Failed(now, "the target override", ex);
             this.freely = targetFreely;
+            failed = true;
         }
-        this.lastFailure = null;
+        if (!failed)
+            this.lastFailure = null;
         return true;
     }
 
@@ -157,20 +163,19 @@ public sealed class RotationSolverIpc(IDalamudPluginInterface pi, IPluginLog log
             this.resendsUnnoted++;
             return;
         }
-        string more = this.resendsUnnoted > 0 ? $" ({this.resendsUnnoted} more times in the last {ResendNoteEvery.TotalSeconds:0} s)" : string.Empty;
-        note($"Rotation Solver Reborn is off though it was asked for {mode}: asking again{more}");
+        string more = this.resendsUnnoted > 0 ? $" ({this.resendsUnnoted} more times since the last note)" : string.Empty;
+        note($"Rotation Solver Reborn is off though it was asked for {mode}: asking again{more}", false);
         this.resendNotedAt = now;
         this.resendsUnnoted = 0;
     }
 
     private void Failed(DateTime now, string what, Exception ex)
     {
-        this.failedUntil = now + RetryAfter;
         string text = $"Rotation Solver Reborn did not take {what}: {ex.Message}";
         if (text == this.lastFailure)
             return;
         this.lastFailure = text;
         log.Warning(ex, "Rotation Solver Reborn IPC call failed");
-        note(text);
+        note(text, true);
     }
 }

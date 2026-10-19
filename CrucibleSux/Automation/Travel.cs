@@ -57,6 +57,8 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
     private const int RefusalsAllowed = 5;
 
     private DateTime lastTick;
+    private DateTime? computingSince;
+    private int landings;
     private int unsticks;
     private int refusals;
     private Vector3? resolved;
@@ -77,6 +79,8 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
         this.stuck = 0;
         this.unsticks = 0;
         this.refusals = 0;
+        this.landings = 0;
+        this.computingSince = null;
         this.Problem = null;
     }
 
@@ -113,11 +117,13 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
             if (nav.IsBusy)
                 nav.Stop();
             // Map coordinates are flat: a flight "arrives" high above the spot. Land there instead of hovering.
-            if (!heightKnown && game.InFlight)
+            // A few tries only: over water or unlandable ground the game refuses, and the spot counts as reached.
+            if (!heightKnown && game.InFlight && this.landings < 5)
             {
                 if (now >= this.nextTry)
                 {
                     this.nextTry = now + RetryEvery;
+                    this.landings++;
                     game.UseGeneral(GameActions.Dismount);
                 }
                 return TravelState.Moving;
@@ -156,10 +162,15 @@ public sealed unsafe class Travel(GameActions game, NavmeshIpc nav, IClientState
                 }
             }
         }
-        else
+        else if (nav.Pathfinding)
         {
-            this.progress = null;
+            // A long computation (a flying path) is not standing still; a quick re-path every RetryEvery is, and keeps the clock.
+            this.computingSince ??= now;
+            if (now - this.computingSince > TimeSpan.FromSeconds(1))
+                this.progress = null;
         }
+        if (!nav.Pathfinding)
+            this.computingSince = null;
         if (this.unstickTeleport)
         {
             var state = this.Teleport(territory, d, now);
